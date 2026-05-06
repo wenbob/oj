@@ -172,6 +172,10 @@ export async function dockerJudgeCppCode({
   testCases,
   timeLimitMs = readPositiveInt(process.env.JUDGE_TIME_LIMIT_MS, 2000),
 }: JudgeInput): Promise<JudgeResult> {
+  const compileTimeoutMs = readPositiveInt(
+    process.env.JUDGE_COMPILE_TIMEOUT_MS,
+    30000,
+  );
   const workDir = await mkdtemp(path.join(tmpdir(), "cpp-oj-docker-"));
   const sourcePath = path.join(workDir, "main.cpp");
   const executableName = "main";
@@ -189,7 +193,7 @@ export async function dockerJudgeCppCode({
       }),
       containerName: compileContainerName,
       input: "",
-      timeoutMs: Math.max(10000, timeLimitMs + 5000),
+      timeoutMs: Math.max(compileTimeoutMs, timeLimitMs + 5000),
     });
 
     if (compile.errorMessage) {

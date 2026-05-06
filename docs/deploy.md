@@ -63,6 +63,7 @@ JUDGE_DOCKER_IMAGE=oj-cpp-judge
 JUDGE_CONCURRENCY=1
 JUDGE_TIME_LIMIT_MS=2000
 JUDGE_MEMORY_LIMIT_MB=128
+JUDGE_COMPILE_TIMEOUT_MS=30000
 ```
 
 不要把 `.env` 提交到 Git，也不要把真实密码或真实 secret 写进文档。
@@ -159,6 +160,18 @@ JUDGE_MODE=docker
 ```
 
 不要在生产环境使用 local Judge。
+
+如果学生提交显示 `Docker 编译超时`，通常是小规格服务器在 Docker 冷启动和 g++ 编译时超过了编译超时阈值。可以在 `.env` 中适当调大：
+
+```env
+JUDGE_COMPILE_TIMEOUT_MS=30000
+```
+
+修改后重启服务：
+
+```bash
+pm2 restart oj
+```
 
 ## 4. Nginx 反向代理
 
