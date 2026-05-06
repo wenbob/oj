@@ -20,11 +20,6 @@ export default async function LoginPage() {
           <h1 className="mt-6 max-w-xl text-4xl font-black leading-tight md:text-6xl">
             {settings.siteSubtitle}
           </h1>
-          <div className="mt-10 grid gap-3 text-sm font-semibold text-linen/78">
-            <span>student - 题目练习与提交记录</span>
-            <span>admin - 题库、账号、考试与系统设置</span>
-            <span>C++17 - Docker Judge - SQLite</span>
-          </div>
         </div>
         <div className="p-6 md:p-10">
           <h2 className="text-2xl font-black text-ink-950">登录</h2>

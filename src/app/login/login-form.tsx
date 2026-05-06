@@ -63,10 +63,6 @@ export function LoginForm() {
         <LogIn size={16} />
         {pending ? "登录中" : "登录"}
       </button>
-      <div className="grid gap-1 border-t border-ink-950/10 pt-5 text-sm text-ink-600">
-        <span>admin / admin123</span>
-        <span>student1 / 123456</span>
-      </div>
     </form>
   );
 }
