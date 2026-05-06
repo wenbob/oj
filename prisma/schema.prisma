@@ -1,0 +1,138 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           Int          @id @default(autoincrement())
+  username     String       @unique
+  passwordHash String
+  role         String
+  createdAt    DateTime     @default(now())
+  submissions  Submission[]
+  examRecords  ExamRecord[]
+}
+
+model Problem {
+  id                Int           @id @default(autoincrement())
+  title             String
+  description       String
+  inputDescription  String
+  outputDescription String
+  sampleInput       String
+  sampleOutput      String
+  dataRange         String?
+  difficulty        String
+  category          String
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  testCases         TestCase[]
+  submissions       Submission[]
+  examProblems      ExamProblem[]
+}
+
+model TestCase {
+  id        Int      @id @default(autoincrement())
+  problemId Int
+  input     String
+  output    String
+  isSample  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  problem   Problem  @relation(fields: [problemId], references: [id], onDelete: Cascade)
+}
+
+model Submission {
+  id             Int                    @id @default(autoincrement())
+  userId         Int
+  problemId      Int
+  examId         Int?
+  submissionType String                 @default("practice")
+  code           String
+  language       String
+  status         String
+  passedCount    Int                    @default(0)
+  totalCount     Int                    @default(0)
+  runtimeMs      Int                    @default(0)
+  errorMessage   String?
+  createdAt      DateTime               @default(now())
+  user           User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  problem        Problem                @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  exam           Exam?                  @relation(fields: [examId], references: [id], onDelete: SetNull)
+  caseResults    SubmissionCaseResult[]
+
+  @@index([userId, createdAt])
+  @@index([problemId, createdAt])
+  @@index([submissionType, userId, createdAt])
+  @@index([submissionType, createdAt])
+  @@index([examId, userId, problemId])
+}
+
+model SubmissionCaseResult {
+  id             Int        @id @default(autoincrement())
+  submissionId   Int
+  caseIndex      Int
+  status         String
+  input          String
+  expectedOutput String
+  actualOutput   String?
+  runtimeMs      Int?
+  errorMessage   String?
+  createdAt      DateTime   @default(now())
+  submission     Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@index([submissionId, caseIndex])
+}
+
+model Exam {
+  id          Int           @id @default(autoincrement())
+  title       String
+  description String?
+  durationMin Int?
+  status      String        @default("draft")
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  problems    ExamProblem[]
+  submissions Submission[]
+  records     ExamRecord[]
+}
+
+model ExamRecord {
+  id          Int       @id @default(autoincrement())
+  examId      Int
+  userId      Int
+  startedAt   DateTime  @default(now())
+  submittedAt DateTime?
+  status      String    @default("in_progress")
+  totalScore  Int?
+  exam        Exam      @relation(fields: [examId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([examId, userId])
+  @@index([userId, status])
+  @@index([examId, status])
+}
+
+model ExamProblem {
+  id        Int     @id @default(autoincrement())
+  examId    Int
+  problemId Int
+  order     Int     @default(0)
+  score     Int     @default(100)
+  exam      Exam    @relation(fields: [examId], references: [id], onDelete: Cascade)
+  problem   Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+
+  @@unique([examId, problemId])
+  @@index([examId, order])
+}
+
+model SystemSetting {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

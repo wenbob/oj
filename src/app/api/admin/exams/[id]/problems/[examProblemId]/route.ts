@@ -1,0 +1,73 @@
+import { NextRequest, NextResponse } from "next/server";
+import { requireApiUser } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+
+type RouteContext = {
+  params: Promise<{ id: string; examProblemId: string }>;
+};
+
+function readUpdatePayload(body: unknown) {
+  const record =
+    typeof body === "object" && body ? (body as Record<string, unknown>) : {};
+  const order = record.order === undefined || record.order === "" ? null : Number(record.order);
+  const score = record.score === undefined || record.score === "" ? null : Number(record.score);
+  return { order, score };
+}
+
+export async function PUT(request: NextRequest, context: RouteContext) {
+  const auth = await requireApiUser(request, "admin");
+  if (auth.response) return auth.response;
+
+  const { id, examProblemId: examProblemIdValue } = await context.params;
+  const examId = Number(id);
+  const examProblemId = Number(examProblemIdValue);
+  const payload = readUpdatePayload(await request.json().catch(() => null));
+
+  if (!Number.isInteger(examId) || !Number.isInteger(examProblemId)) {
+    return NextResponse.json({ error: "考试题目 ID 不合法" }, { status: 400 });
+  }
+  if (payload.order !== null && (!Number.isInteger(payload.order) || payload.order < 0)) {
+    return NextResponse.json({ error: "排序值不合法" }, { status: 400 });
+  }
+  if (payload.score !== null && (!Number.isInteger(payload.score) || payload.score <= 0)) {
+    return NextResponse.json({ error: "分值必须是正整数" }, { status: 400 });
+  }
+
+  const updated = await prisma.examProblem.updateMany({
+    where: { id: examProblemId, examId },
+    data: {
+      ...(payload.order !== null ? { order: payload.order } : {}),
+      ...(payload.score !== null ? { score: payload.score } : {}),
+    },
+  });
+
+  if (updated.count === 0) {
+    return NextResponse.json({ error: "考试题目不存在" }, { status: 404 });
+  }
+
+  const examProblem = await prisma.examProblem.findFirst({
+    where: { id: examProblemId, examId },
+    include: {
+      problem: {
+        select: { id: true, title: true, difficulty: true, category: true },
+      },
+    },
+  });
+
+  return NextResponse.json({ examProblem });
+}
+
+export async function DELETE(request: NextRequest, context: RouteContext) {
+  const auth = await requireApiUser(request, "admin");
+  if (auth.response) return auth.response;
+
+  const { id, examProblemId: examProblemIdValue } = await context.params;
+  const examId = Number(id);
+  const examProblemId = Number(examProblemIdValue);
+  if (!Number.isInteger(examId) || !Number.isInteger(examProblemId)) {
+    return NextResponse.json({ error: "考试题目 ID 不合法" }, { status: 400 });
+  }
+
+  await prisma.examProblem.deleteMany({ where: { id: examProblemId, examId } });
+  return NextResponse.json({ ok: true });
+}

@@ -1,0 +1,189 @@
+import type { Prisma } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
+
+type DbClient = typeof prisma | Prisma.TransactionClient;
+
+export type ExamProblemScore = {
+  problemId: number;
+  title: string;
+  score: number;
+  maxScore: number;
+  bestStatus: string;
+  submissionCount: number;
+};
+
+export type ExamScoreResult = {
+  totalScore: number;
+  problemResults: ExamProblemScore[];
+};
+
+export function getExamEndAt(startedAt: Date, durationMin: number | null) {
+  if (!durationMin) return null;
+  return new Date(startedAt.getTime() + durationMin * 60 * 1000);
+}
+
+export function isExamExpired({
+  durationMin,
+  now = new Date(),
+  startedAt,
+}: {
+  durationMin: number | null;
+  now?: Date;
+  startedAt: Date;
+}) {
+  const endAt = getExamEndAt(startedAt, durationMin);
+  return endAt ? now.getTime() >= endAt.getTime() : false;
+}
+
+export async function calculateExamScore({
+  db = prisma,
+  examId,
+  userId,
+}: {
+  db?: DbClient;
+  examId: number;
+  userId: number;
+}): Promise<ExamScoreResult> {
+  const examProblems = await db.examProblem.findMany({
+    where: { examId },
+    include: {
+      problem: {
+        select: {
+          id: true,
+          title: true,
+        },
+      },
+    },
+    orderBy: [{ order: "asc" }, { id: "asc" }],
+  });
+
+  const problemIds = examProblems.map((item) => item.problemId);
+  const submissions = problemIds.length
+    ? await db.submission.findMany({
+        where: {
+          examId,
+          problemId: { in: problemIds },
+          submissionType: "exam",
+          userId,
+        },
+        orderBy: { createdAt: "desc" },
+        select: {
+          createdAt: true,
+          problemId: true,
+          status: true,
+        },
+      })
+    : [];
+
+  const submissionsByProblem = new Map<number, typeof submissions>();
+  for (const submission of submissions) {
+    const current = submissionsByProblem.get(submission.problemId) ?? [];
+    current.push(submission);
+    submissionsByProblem.set(submission.problemId, current);
+  }
+
+  const problemResults = examProblems.map((examProblem) => {
+    const problemSubmissions =
+      submissionsByProblem.get(examProblem.problemId) ?? [];
+    const accepted = problemSubmissions.some(
+      (submission) => submission.status === "Accepted",
+    );
+    const score = accepted ? examProblem.score : 0;
+
+    return {
+      problemId: examProblem.problemId,
+      title: examProblem.problem.title,
+      score,
+      maxScore: examProblem.score,
+      bestStatus: accepted
+        ? "Accepted"
+        : problemSubmissions[0]?.status ?? "未提交",
+      submissionCount: problemSubmissions.length,
+    };
+  });
+
+  return {
+    totalScore: problemResults.reduce((sum, item) => sum + item.score, 0),
+    problemResults,
+  };
+}
+
+export async function finishExamRecord({
+  examId,
+  status,
+  userId,
+}: {
+  examId: number;
+  status: "submitted" | "expired";
+  userId: number;
+}) {
+  return prisma.$transaction(async (tx) => {
+    const record = await tx.examRecord.findUnique({
+      where: {
+        examId_userId: {
+          examId,
+          userId,
+        },
+      },
+    });
+
+    if (!record) {
+      throw new Error("考试记录不存在");
+    }
+
+    if (record.status !== "in_progress") {
+      return record;
+    }
+
+    const score = await calculateExamScore({ db: tx, examId, userId });
+    return tx.examRecord.update({
+      where: { id: record.id },
+      data: {
+        status,
+        submittedAt: new Date(),
+        totalScore: score.totalScore,
+      },
+    });
+  });
+}
+
+export async function expireExamRecordIfNeeded({
+  examId,
+  userId,
+}: {
+  examId: number;
+  userId: number;
+}) {
+  const record = await prisma.examRecord.findUnique({
+    where: {
+      examId_userId: {
+        examId,
+        userId,
+      },
+    },
+    include: {
+      exam: {
+        select: {
+          durationMin: true,
+          status: true,
+        },
+      },
+    },
+  });
+
+  if (!record || record.status !== "in_progress") {
+    return record;
+  }
+
+  const expiredByTime = isExamExpired({
+    durationMin: record.exam.durationMin,
+    startedAt: record.startedAt,
+  });
+  const expiredByExamStatus = record.exam.status !== "published";
+
+  if (!expiredByTime && !expiredByExamStatus) {
+    return record;
+  }
+
+  return finishExamRecord({ examId, status: "expired", userId });
+}

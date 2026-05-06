@@ -1,0 +1,89 @@
+import { AppShell } from "@/components/AppShell";
+import { requirePageUser } from "@/lib/auth";
+import {
+  buildPaginationMeta,
+  readPaginationFromObject,
+} from "@/lib/pagination";
+import { prisma } from "@/lib/prisma";
+import { ProblemManager } from "./problem-manager";
+
+const adminNav = [
+  { href: "/admin", label: "后台首页" },
+  { href: "/admin/practice", label: "题目练习" },
+  { href: "/admin/problems", label: "题目管理" },
+  { href: "/admin/exams", label: "模拟考试" },
+  { href: "/admin/users", label: "用户管理" },
+  { href: "/admin/submissions", label: "日常提交" },
+  { href: "/admin/exam-submissions", label: "考试提交" },
+];
+
+type PageProps = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function AdminProblemsPage({ searchParams }: PageProps) {
+  const user = await requirePageUser("admin");
+  const query = await searchParams;
+  const selectedCategory = Array.isArray(query.category)
+    ? query.category[0]
+    : query.category;
+  const normalizedCategory = selectedCategory?.trim() || "";
+  const { page, pageSize, skip } = readPaginationFromObject(query);
+  const where = normalizedCategory ? { category: normalizedCategory } : undefined;
+  const [problems, total, allCategories] = await Promise.all([
+    prisma.problem.findMany({
+      where,
+      include: {
+        testCases: { orderBy: { id: "asc" } },
+        _count: { select: { submissions: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: pageSize,
+    }),
+    prisma.problem.count({ where }),
+    prisma.problem.findMany({
+      select: { category: true },
+      orderBy: { category: "asc" },
+    }),
+  ]);
+
+  const initialProblems = problems.map((problem) => ({
+    id: problem.id,
+    title: problem.title,
+    description: problem.description,
+    inputDescription: problem.inputDescription,
+    outputDescription: problem.outputDescription,
+    sampleInput: problem.sampleInput,
+    sampleOutput: problem.sampleOutput,
+    dataRange: problem.dataRange ?? "",
+    difficulty: problem.difficulty,
+    category: problem.category,
+    testCases: problem.testCases.map((testCase) => ({
+      id: testCase.id,
+      input: testCase.input,
+      output: testCase.output,
+      isSample: testCase.isSample,
+    })),
+    submissions: problem._count.submissions,
+  }));
+
+  const categories = Array.from(
+    new Set(
+      allCategories
+        .map((problem) => problem.category?.trim() || "未分类")
+        .filter(Boolean),
+    ),
+  );
+
+  return (
+    <AppShell nav={adminNav} title="管理员端" user={user}>
+      <ProblemManager
+        categories={categories}
+        initialCategory={normalizedCategory}
+        initialPagination={buildPaginationMeta({ page, pageSize, total })}
+        initialProblems={initialProblems}
+      />
+    </AppShell>
+  );
+}

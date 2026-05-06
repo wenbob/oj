@@ -1,0 +1,58 @@
+import { NextRequest, NextResponse } from "next/server";
+import { requireApiUser } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+
+function normalizeProblemIds(value: unknown) {
+  if (!Array.isArray(value)) {
+    return { ids: [], error: "problemIds 必须是非空数组" };
+  }
+
+  if (value.length === 0) {
+    return { ids: [], error: "请选择要删除的题目" };
+  }
+
+  const ids = Array.from(
+    new Set(
+      value.map((item) =>
+        typeof item === "number" || typeof item === "string" ? Number(item) : NaN,
+      ),
+    ),
+  );
+
+  if (ids.some((id) => !Number.isInteger(id) || id <= 0)) {
+    return { ids: [], error: "题目 ID 必须是有效数字" };
+  }
+
+  return { ids, error: "" };
+}
+
+export async function POST(request: NextRequest) {
+  const auth = await requireApiUser(request, "admin");
+  if (auth.response) return auth.response;
+
+  try {
+    const body = await request.json().catch(() => null);
+    const { ids, error } = normalizeProblemIds(body?.problemIds);
+    if (error) {
+      return NextResponse.json({ error }, { status: 400 });
+    }
+
+    const deletedCount = await prisma.$transaction(async (tx) => {
+      const existingProblems = await tx.problem.findMany({
+        where: { id: { in: ids } },
+        select: { id: true },
+      });
+      const existingIds = existingProblems.map((problem) => problem.id);
+      if (existingIds.length === 0) return 0;
+
+      const result = await tx.problem.deleteMany({
+        where: { id: { in: existingIds } },
+      });
+      return result.count;
+    });
+
+    return NextResponse.json({ deletedCount });
+  } catch {
+    return NextResponse.json({ error: "批量删除题目失败" }, { status: 500 });
+  }
+}

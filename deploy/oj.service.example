@@ -1,0 +1,18 @@
+[Unit]
+Description=C++ OJ Demo
+After=network-online.target docker.service
+Wants=network-online.target docker.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/cpp-oj
+Environment=NODE_ENV=production
+EnvironmentFile=/opt/cpp-oj/.env
+ExecStart=/usr/bin/npm run start
+Restart=always
+RestartSec=5
+User=oj
+Group=oj
+
+[Install]
+WantedBy=multi-user.target

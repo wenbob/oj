@@ -1,0 +1,132 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+
+type ExamFormValue = {
+  id?: number;
+  title: string;
+  description: string;
+  durationMin: string;
+  status: string;
+};
+
+export function ExamFormClient({
+  initialValue = {
+    title: "",
+    description: "",
+    durationMin: "90",
+    status: "draft",
+  },
+  mode,
+}: {
+  initialValue?: ExamFormValue;
+  mode: "create" | "edit";
+}) {
+  const router = useRouter();
+  const [form, setForm] = useState(initialValue);
+  const [message, setMessage] = useState("");
+  const [pending, setPending] = useState(false);
+
+  function update(field: keyof ExamFormValue, value: string) {
+    setForm((current) => ({ ...current, [field]: value }));
+  }
+
+  async function submit() {
+    if (!form.title.trim()) {
+      setMessage("考试名称不能为空");
+      return;
+    }
+    const duration = Number(form.durationMin);
+    if (!Number.isInteger(duration) || duration <= 0) {
+      setMessage("考试时长必须大于 0 分钟");
+      return;
+    }
+
+    setPending(true);
+    setMessage("");
+    const url =
+      mode === "create" ? "/api/admin/exams" : `/api/admin/exams/${form.id}`;
+    const response = await fetch(url, {
+      method: mode === "create" ? "POST" : "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: form.title,
+        description: form.description,
+        durationMin: form.durationMin,
+        status: form.status,
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+    setPending(false);
+
+    if (!response.ok) {
+      setMessage(data.error ?? "保存失败");
+      return;
+    }
+
+    const examId = data.exam?.id ?? form.id;
+    router.push(mode === "create" ? `/admin/exams/${examId}/edit` : "/admin/exams");
+    router.refresh();
+  }
+
+  return (
+    <section className="surface p-5">
+      {message ? (
+        <p className="mb-4 border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">
+          {message}
+        </p>
+      ) : null}
+      <div className="grid gap-4">
+        <label className="grid gap-2 text-sm font-bold text-ink-800">
+          考试名称
+          <input
+            className="field"
+            onChange={(event) => update("title", event.target.value)}
+            value={form.title}
+          />
+        </label>
+        <label className="grid gap-2 text-sm font-bold text-ink-800">
+          考试说明
+          <textarea
+            className="field min-h-28"
+            onChange={(event) => update("description", event.target.value)}
+            value={form.description}
+          />
+        </label>
+        <div className="grid gap-4 md:grid-cols-2">
+          <label className="grid gap-2 text-sm font-bold text-ink-800">
+            考试时长（分钟）
+            <input
+              className="field"
+              min={1}
+              onChange={(event) => update("durationMin", event.target.value)}
+              type="number"
+              value={form.durationMin}
+            />
+          </label>
+          <label className="grid gap-2 text-sm font-bold text-ink-800">
+            状态
+            <select
+              className="field"
+              onChange={(event) => update("status", event.target.value)}
+              value={form.status}
+            >
+              <option value="draft">draft 草稿</option>
+              <option value="published">published 已发布</option>
+              <option value="ended">ended 已结束</option>
+            </select>
+          </label>
+        </div>
+        <button
+          className="btn btn-primary justify-center"
+          disabled={pending}
+          onClick={submit}
+          type="button"
+        >
+          {pending ? "保存中..." : mode === "create" ? "创建考试" : "保存考试"}
+        </button>
+      </div>
+    </section>
+  );
+}

@@ -1,0 +1,132 @@
+import { NextRequest, NextResponse } from "next/server";
+import { requireApiUser } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+
+type RouteContext = {
+  params: Promise<{ id: string }>;
+};
+
+function readExamPayload(body: unknown) {
+  const record =
+    typeof body === "object" && body ? (body as Record<string, unknown>) : {};
+  const title = typeof record.title === "string" ? record.title.trim() : "";
+  const description =
+    typeof record.description === "string" ? record.description.trim() : "";
+  const durationMin =
+    record.durationMin === undefined ||
+    record.durationMin === null ||
+    record.durationMin === ""
+      ? null
+      : Number(record.durationMin);
+  const status = typeof record.status === "string" ? record.status : "draft";
+
+  return { title, description, durationMin, status };
+}
+
+function validateExamPayload(payload: ReturnType<typeof readExamPayload>) {
+  if (!payload.title) return "考试名称不能为空";
+  if (
+    payload.durationMin !== null &&
+    (!Number.isInteger(payload.durationMin) || payload.durationMin <= 0)
+  ) {
+    return "考试时长必须是正整数";
+  }
+  if (!["draft", "published", "ended"].includes(payload.status)) {
+    return "考试状态不合法";
+  }
+  return null;
+}
+
+export async function GET(request: NextRequest, context: RouteContext) {
+  const auth = await requireApiUser(request, "admin");
+  if (auth.response) return auth.response;
+
+  const { id } = await context.params;
+  const examId = Number(id);
+  if (!Number.isInteger(examId)) {
+    return NextResponse.json({ error: "考试 ID 不合法" }, { status: 400 });
+  }
+
+  const exam = await prisma.exam.findUnique({
+    where: { id: examId },
+    include: {
+      problems: {
+        include: {
+          problem: {
+            select: {
+              id: true,
+              title: true,
+              difficulty: true,
+              category: true,
+            },
+          },
+        },
+        orderBy: [{ order: "asc" }, { id: "asc" }],
+      },
+    },
+  });
+
+  if (!exam) return NextResponse.json({ error: "考试不存在" }, { status: 404 });
+  return NextResponse.json({ exam });
+}
+
+export async function PUT(request: NextRequest, context: RouteContext) {
+  const auth = await requireApiUser(request, "admin");
+  if (auth.response) return auth.response;
+
+  const { id } = await context.params;
+  const examId = Number(id);
+  if (!Number.isInteger(examId)) {
+    return NextResponse.json({ error: "考试 ID 不合法" }, { status: 400 });
+  }
+
+  const payload = readExamPayload(await request.json().catch(() => null));
+  const error = validateExamPayload(payload);
+  if (error) return NextResponse.json({ error }, { status: 400 });
+  if (payload.status === "published") {
+    const examProblems = await prisma.examProblem.findMany({
+      where: { examId },
+      include: { problem: { select: { title: true } } },
+      orderBy: [{ order: "asc" }, { id: "asc" }],
+    });
+    if (examProblems.length === 0) {
+      return NextResponse.json(
+        { error: "考试至少需要添加 1 道题后才能发布" },
+        { status: 400 },
+      );
+    }
+    const invalidProblem = examProblems.find((item) => item.score <= 0);
+    if (invalidProblem) {
+      return NextResponse.json(
+        { error: `题目《${invalidProblem.problem.title}》的分值必须大于 0` },
+        { status: 400 },
+      );
+    }
+  }
+
+  const exam = await prisma.exam.update({
+    where: { id: examId },
+    data: {
+      title: payload.title,
+      description: payload.description || null,
+      durationMin: payload.durationMin,
+      status: payload.status,
+    },
+  });
+
+  return NextResponse.json({ exam });
+}
+
+export async function DELETE(request: NextRequest, context: RouteContext) {
+  const auth = await requireApiUser(request, "admin");
+  if (auth.response) return auth.response;
+
+  const { id } = await context.params;
+  const examId = Number(id);
+  if (!Number.isInteger(examId)) {
+    return NextResponse.json({ error: "考试 ID 不合法" }, { status: 400 });
+  }
+
+  await prisma.exam.delete({ where: { id: examId } });
+  return NextResponse.json({ ok: true });
+}
