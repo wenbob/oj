@@ -25,6 +25,7 @@
 
 - [学生使用说明](docs/student-guide.md)
 - [管理员使用和运维说明](docs/admin-guide.md)
+- [线上部署与维护手册](docs/deploy.md)
 
 ## 技术栈
 
