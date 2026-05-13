@@ -42,7 +42,7 @@ cd /www/oj
 安装依赖：
 
 ```bash
-npm install
+npm ci --registry=https://registry.npmmirror.com --no-audit --no-fund
 ```
 
 复制环境变量文件：
@@ -63,7 +63,7 @@ JUDGE_DOCKER_IMAGE=oj-cpp-judge
 JUDGE_CONCURRENCY=1
 JUDGE_TIME_LIMIT_MS=2000
 JUDGE_MEMORY_LIMIT_MB=128
-JUDGE_COMPILE_TIMEOUT_MS=30000
+JUDGE_COMPILE_TIMEOUT_MS=45000
 ```
 
 不要把 `.env` 提交到 Git，也不要把真实密码或真实 secret 写进文档。
@@ -106,6 +106,8 @@ npm run build
 pm2 start npm --name oj -- run start
 pm2 save
 ```
+
+`npm run start` 会先执行生产环境变量检查，然后使用 Next.js standalone 服务启动。
 
 如果需要配置 PM2 开机自启：
 
@@ -164,13 +166,13 @@ JUDGE_MODE=docker
 如果学生提交显示 `Docker 编译超时`，通常是小规格服务器在 Docker 冷启动和 g++ 编译时超过了编译超时阈值。可以在 `.env` 中适当调大：
 
 ```env
-JUDGE_COMPILE_TIMEOUT_MS=30000
+JUDGE_COMPILE_TIMEOUT_MS=45000
 ```
 
 修改后重启服务：
 
 ```bash
-pm2 restart oj
+pm2 restart oj --update-env
 ```
 
 ## 4. Nginx 反向代理
@@ -304,7 +306,7 @@ npm run db:status
 部署新版本后执行：
 
 ```bash
-npm install
+npm ci --registry=https://registry.npmmirror.com --no-audit --no-fund
 npm run check:env
 npm run db:deploy
 docker build -t oj-cpp-judge ./docker/judge-cpp
@@ -392,23 +394,37 @@ git archive -o oj.zip HEAD
 
 ```bash
 cd /www
-mkdir -p oj-new
-unzip oj.zip -d oj-new
-cd oj-new
-cp /www/oj/.env .env
-npm install
+rm -rf /www/oj-new
+mkdir -p /www/oj-new
+unzip -o /www/oj.zip -d /www/oj-new
+cp /www/oj/.env /www/oj-new/.env
+cp /www/oj/prisma/prod.db /www/oj-new/prisma/prod.db
+cd /www/oj-new
+npm ci --registry=https://registry.npmmirror.com --no-audit --no-fund
 npm run check:env
 npm run db:deploy
 docker build -t oj-cpp-judge ./docker/judge-cpp
 npm run build
 ```
 
-确认无误后再切换目录或覆盖旧版本。覆盖前必须备份数据库：
+确认无误后再切换目录。切换前必须备份数据库，并确认新目录存在 `.next`、`.env` 和 `prisma/prod.db`：
 
 ```bash
 mkdir -p /www/backups
 cp /www/oj/prisma/prod.db /www/backups/prod-$(date +%Y%m%d-%H%M%S).db
+
+test -d /www/oj-new/.next
+test -f /www/oj-new/.env
+test -f /www/oj-new/prisma/prod.db
+
+mv /www/oj /www/oj-old-$(date +%Y%m%d-%H%M%S)
+mv /www/oj-new /www/oj
+cd /www/oj
+pm2 restart oj --update-env
+curl http://127.0.0.1:3000/api/health
 ```
+
+如果健康检查失败，立即把最新 `/www/oj-old-*` 恢复为 `/www/oj`。
 
 ### 方案 B：同步到 Gitee
 
@@ -425,7 +441,7 @@ cd /www/oj
 ```bash
 cd /www/oj
 git pull
-npm install
+npm ci --registry=https://registry.npmmirror.com --no-audit --no-fund
 npm run check:env
 npm run db:deploy
 docker build -t oj-cpp-judge ./docker/judge-cpp
@@ -434,3 +450,17 @@ pm2 restart oj
 ```
 
 无论使用哪种方案，都不要把 `.env`、`prod.db`、备份文件、真实密码提交到远程仓库。
+
+
+## 12. 当前服务器容量建议
+
+当前线上规格为 2 核 CPU、2GB 内存、4GB swap、3M 带宽，且 `JUDGE_CONCURRENCY=1` 表示同一时间只运行一个评测任务。建议：
+
+```text
+3 名学生：适合长期使用
+5 名学生：通常可用，但提交高峰会排队
+8-10 名学生：只适合轻量练习，评测等待会明显变长
+10 名以上：建议升级服务器并拆分数据库和 Judge
+```
+
+页面浏览不是主要瓶颈，真正瓶颈是 Docker Judge 的编译运行。扩大人数时优先考虑 4 核 8GB、PostgreSQL、Redis 队列和独立 Judge Worker。

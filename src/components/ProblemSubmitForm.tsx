@@ -31,6 +31,11 @@ type SubmissionResult = {
   totalCount: number;
   runtimeMs: number;
   errorMessage?: string | null;
+  caseResults?: {
+    caseIndex: number;
+    status: string;
+    actualOutput?: string | null;
+  }[];
 };
 
 export function ProblemSubmitForm({
@@ -163,6 +168,12 @@ export function ProblemSubmitForm({
     setResult(data.submission);
   }
 
+  const outputCase =
+    result?.caseResults?.find((item) => item.status !== "Accepted") ??
+    result?.caseResults?.[0];
+  const hasActualOutput =
+    outputCase?.actualOutput !== undefined && outputCase.actualOutput !== null;
+
   return (
     <section className="surface p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -215,6 +226,18 @@ export function ProblemSubmitForm({
             {result.passedCount}/{result.totalCount} 测试点
           </span>
           <span>{formatRuntime(result.runtimeMs)}</span>
+          {hasActualOutput ? (
+            <div className="mt-2 grid gap-1">
+              <span className="text-xs font-black text-ink-600">
+                程序输出（测试点 {outputCase.caseIndex}）
+              </span>
+              <pre className="max-h-44 overflow-auto border border-ink-950/10 bg-stone-50 p-3 text-xs font-mono font-semibold whitespace-pre-wrap text-ink-800">
+                {outputCase.actualOutput?.length
+                  ? outputCase.actualOutput
+                  : "（无输出）"}
+              </pre>
+            </div>
+          ) : null}
           {result.errorMessage ? (
             <pre className="mt-2 max-h-44 overflow-auto border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
               {result.errorMessage}

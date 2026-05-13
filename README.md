@@ -2,7 +2,7 @@
 
 这是一个基于 Next.js 的 C++ 在线 OJ 练习平台 Demo。当前版本已经覆盖日常刷题、模拟考试、代码提交、自动评测、提交详情、管理员题目管理、用户管理、系统设置、Markdown 批量导入、Docker Judge 和基础提交队列等核心流程。
 
-当前项目适合作为本地教学演示、功能验证和后续迭代基础。它已经比最初 Demo 更完整，但仍不建议直接作为公网正式 OJ 使用；正式使用前需要继续加强评测沙箱、账号安全、数据库迁移、测试覆盖和运维能力。
+当前项目适合作为本地教学演示、功能验证和 3 名学生左右的小规模正式使用基础。线上使用时必须启用 Docker Judge、强随机 `SESSION_SECRET`、定期 SQLite 备份和管理员密码安全管理；它仍不适合作为大规模公网 OJ 或高并发竞赛平台。
 
 核心流程：
 
@@ -27,6 +27,7 @@
 - [管理员使用和运维说明](docs/admin-guide.md)
 - [线上部署与维护手册](docs/deploy.md)
 - [2026-05-06 线上更新复盘与运维经验](docs/ops-review-2026-05-06.md)
+- [2026-05-12 单文件热更新记录](docs/ops-review-2026-05-12.md)
 
 ## 技术栈
 
@@ -250,6 +251,8 @@ oj-code-problem-${problemId}
 - 用户输出
 - 标准输出
 - 错误信息
+
+提交后的结果卡片会直接展示一个“程序输出”区域，优先显示第一个未通过测试点的用户输出；如果全部通过，则显示第一个测试点输出。完整输入、标准输出和所有测试点结果仍可进入提交详情页查看。
 
 ### 日常提交记录
 
@@ -1140,7 +1143,7 @@ npm run check:env
 ### 安装依赖和构建
 
 ```bash
-npm ci
+npm ci --registry=https://registry.npmmirror.com --no-audit --no-fund
 npm run build
 ```
 
@@ -1150,13 +1153,11 @@ npm run build
 output: "standalone"
 ```
 
-因此生产构建会生成更适合部署的 standalone 产物。小规模部署仍可以直接使用：
+因此生产构建会生成更适合部署的 standalone 产物。当前 `npm run start` 会先执行 `npm run check:env`，再通过 `node .next/standalone/server.js` 启动生产服务；生产环境变量不合规时会拒绝启动。
 
 ```bash
 npm run start
 ```
-
-`npm run start` 会先执行 `npm run check:env`，生产环境变量不合规时会拒绝启动。
 
 ### 数据库迁移
 
@@ -1226,6 +1227,19 @@ bash scripts/backup-sqlite.sh
 ```
 
 如果后续学生数量增加、并发提交变多或需要更强可靠性，应迁移 PostgreSQL。
+
+### 当前服务器容量建议
+
+当前线上规格为 2 核 CPU、2GB 内存、4GB swap、3M 带宽，并使用 `JUDGE_CONCURRENCY=1` 串行评测。建议按下面标准使用：
+
+```text
+3 名学生：适合长期使用
+5 名学生：通常可用，但提交高峰会排队
+8-10 名学生：只适合轻量练习，评测等待会明显变长
+10 名以上：不建议继续使用当前单机 SQLite + 单 Judge 配置
+```
+
+瓶颈主要在 Docker Judge 编译运行阶段，而不是页面浏览。扩大人数时优先升级到 4 核 8GB、PostgreSQL、Redis 队列和独立 Judge Worker。
 
 ## 上线前检查清单
 
@@ -1320,15 +1334,15 @@ bash scripts/backup-sqlite.sh
 
 ## 当前版本结论
 
-当前版本已经适合作为本地 Demo、课堂演示和内部功能验证使用。
+当前版本已经适合作为本地 Demo、课堂演示、内部功能验证，以及约 3 名学生的小规模正式使用。
 
-当前版本不建议直接上线到公网给真实学生长期使用。
+当前版本不建议直接扩展为大规模公网 OJ 或高并发竞赛平台。真实使用时必须保持 `JUDGE_MODE=docker`、定期备份 SQLite、关闭公网 3000 端口，并避免重复执行 `npm run seed` / `npm run db:init`。
 
-如果要进入真实使用，最低需要继续完成：
+如果要扩大使用规模，最低需要继续完成：
 
-- 默认启用并强化 Docker Judge 或专用沙箱。
+- 将 SQLite 迁移到 PostgreSQL。
+- 将内存队列升级为 Redis / BullMQ 或独立 Judge 服务。
 - 隐藏非样例测试点输入输出。
-- 使用更可靠的数据库和迁移流程。
-- 补充端到端权限测试。
-- 加强账号安全和运维配置。
+- 补充端到端权限测试和真实 Docker Judge 冒烟测试脚本。
+- 配置域名、HTTPS、自动备份和更完整的监控告警。
 - 为考试结果和成绩统计补充更完整的管理视图。
