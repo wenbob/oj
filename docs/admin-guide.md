@@ -510,7 +510,22 @@ backups/
 
 恢复前建议把当前数据库也复制一份，避免二次损坏。
 
-## 20. 学生忘记密码怎么办
+## 20. 复制代码失败怎么办
+
+如果管理端或学生端点击“复制代码”后显示失败，优先检查访问地址是否仍是公网 HTTP。现代浏览器在非安全上下文中会禁用 `navigator.clipboard.writeText`。
+
+当前平台已经增加兼容复制方案：HTTPS 或安全上下文优先使用 Clipboard API，公网 HTTP 下 fallback 到 `textarea + document.execCommand("copy")`。如果线上仍然失败，按下面顺序检查：
+
+```bash
+grep -n 'execCommand\|isSecureContext' /www/oj/src/lib/copyToClipboard.ts
+npm run build
+pm2 restart oj --update-env
+curl http://127.0.0.1:3000/api/health
+```
+
+长期建议仍然是绑定域名并配置 HTTPS。
+
+## 21. 学生忘记密码怎么办
 
 进入：
 
@@ -522,7 +537,7 @@ backups/
 
 提醒学生下次登录使用新密码。
 
-## 21. 上课前检查清单
+## 22. 上课前检查清单
 
 ```text
 [ ] Docker Desktop / Docker Engine 已启动
