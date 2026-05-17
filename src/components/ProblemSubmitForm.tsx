@@ -64,6 +64,7 @@ export function ProblemSubmitForm({
       : fallbackCppTemplate;
   const [code, setCode] = useState(initialCode);
   const [draftLoaded, setDraftLoaded] = useState(false);
+  const [loadedStorageKey, setLoadedStorageKey] = useState<string | null>(null);
   const [loadMessage, setLoadMessage] = useState("");
   const [loadError, setLoadError] = useState("");
   const [result, setResult] = useState<SubmissionResult | null>(null);
@@ -73,6 +74,14 @@ export function ProblemSubmitForm({
 
   useEffect(() => {
     let cancelled = false;
+    setDraftLoaded(false);
+    setLoadedStorageKey(null);
+    setLoadMessage("");
+    setLoadError("");
+    setResult(null);
+    setError("");
+    setCode(initialCode);
+
     const frame = window.requestAnimationFrame(async () => {
       if (cancelled) return;
 
@@ -108,6 +117,7 @@ export function ProblemSubmitForm({
           window.localStorage.setItem(storageKey, historicalCode);
           setLoadMessage("已加载历史提交代码，你可以继续修改后重新提交。");
           setDraftLoaded(true);
+          setLoadedStorageKey(storageKey);
           return;
         } catch {
           setLoadError("历史代码加载失败，请重新进入提交详情页。");
@@ -119,13 +129,14 @@ export function ProblemSubmitForm({
         setCode(savedCode);
       }
       setDraftLoaded(true);
+      setLoadedStorageKey(storageKey);
     });
 
     return () => {
       cancelled = true;
       window.cancelAnimationFrame(frame);
     };
-  }, [examId, fromSubmissionId, problemId, storageKey]);
+  }, [examId, fromSubmissionId, initialCode, problemId, storageKey]);
 
   useEffect(() => {
     if (!examEndsAt) return;
@@ -139,9 +150,9 @@ export function ProblemSubmitForm({
   }, [examEndsAt]);
 
   useEffect(() => {
-    if (!draftLoaded) return;
+    if (!draftLoaded || loadedStorageKey !== storageKey) return;
     window.localStorage.setItem(storageKey, code);
-  }, [code, draftLoaded, storageKey]);
+  }, [code, draftLoaded, loadedStorageKey, storageKey]);
 
   async function submit() {
     if (disabled || timeExpired) {
