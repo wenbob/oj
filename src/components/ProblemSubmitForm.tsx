@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
 import { SendHorizontal } from "lucide-react";
 import { useEffect, useState } from "react";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -47,6 +48,7 @@ export function ProblemSubmitForm({
   examEndsAt,
   fromSubmissionId,
   problemId,
+  refreshOnSuccess = false,
 }: {
   defaultCodeTemplate?: string;
   detailHrefBase?: string;
@@ -56,8 +58,12 @@ export function ProblemSubmitForm({
   examEndsAt?: string | null;
   fromSubmissionId?: number;
   problemId: number;
+  refreshOnSuccess?: boolean;
 }) {
-  const storageKey = `oj-code-problem-${problemId}`;
+  const router = useRouter();
+  const storageKey = examId
+    ? `oj-code-exam-${examId}-problem-${problemId}`
+    : `oj-code-problem-${problemId}`;
   const initialCode =
     defaultCodeTemplate && defaultCodeTemplate.trim()
       ? defaultCodeTemplate
@@ -177,6 +183,9 @@ export function ProblemSubmitForm({
       return;
     }
     setResult(data.submission);
+    if (refreshOnSuccess) {
+      router.refresh();
+    }
   }
 
   const outputCase =
@@ -195,6 +204,7 @@ export function ProblemSubmitForm({
       </div>
       <div className="mt-4">
         <CodeEditor
+          key={storageKey}
           height="460px"
           language="cpp"
           value={code}

@@ -233,6 +233,9 @@ export default async function StudentExamTakePage({
                 </section>
               ) : null}
               <ProblemSubmitForm
+                key={`exam-${exam.id}-problem-${selectedProblem.id}-${
+                  Number.isInteger(fromSubmissionId) ? fromSubmissionId : "draft"
+                }`}
                 defaultCodeTemplate={defaultCodeTemplate}
                 detailHrefBase="/student/submissions"
                 examId={exam.id}
@@ -241,6 +244,7 @@ export default async function StudentExamTakePage({
                   Number.isInteger(fromSubmissionId) ? fromSubmissionId : undefined
                 }
                 problemId={selectedProblem.id}
+                refreshOnSuccess
               />
             </aside>
           </div>
