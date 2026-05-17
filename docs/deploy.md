@@ -310,9 +310,12 @@ npm ci --registry=https://registry.npmmirror.com --no-audit --no-fund
 npm run check:env
 npm run db:deploy
 docker build -t oj-cpp-judge ./docker/judge-cpp
+pm2 stop oj
 npm run build
-pm2 restart oj
+pm2 restart oj --update-env
 ```
+
+当前 2 核 2GB 服务器资源有限。如果是在 `/www/oj` 当前线上目录直接构建，建议先 `pm2 stop oj` 再执行 `npm run build`，避免构建和线上 Node 进程同时争抢内存导致 SSH、HTTP 短暂卡住。使用 `/www/oj-new` 新目录构建时，可以先在新目录完成构建，再切换目录并重启 PM2。
 
 ## 8. 安全收尾清单
 
@@ -445,8 +448,9 @@ npm ci --registry=https://registry.npmmirror.com --no-audit --no-fund
 npm run check:env
 npm run db:deploy
 docker build -t oj-cpp-judge ./docker/judge-cpp
+pm2 stop oj
 npm run build
-pm2 restart oj
+pm2 restart oj --update-env
 ```
 
 无论使用哪种方案，都不要把 `.env`、`prod.db`、备份文件、真实密码提交到远程仓库。

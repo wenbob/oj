@@ -80,3 +80,26 @@ curl http://127.0.0.1:3000/api/health
 ## 注意事项
 
 修复前浏览器中已经保存过的旧日常草稿不会自动迁移到新的考试草稿 key。考试页会从新的按考试隔离的 key 开始保存，避免旧草稿继续污染不同考试题目。
+
+## 同日补充：考试编辑页分类多选添加题目
+
+2026-05-17 继续优化管理员考试编辑页：
+
+- 在“添加已有题目”区域增加分类按钮。
+- 点击分类后展示该分类下可加入考试的题目。
+- 搜索题名可以和分类筛选同时使用。
+- 搜索结果支持单独勾选题目。
+- 支持“全选当前结果”。
+- 支持“添加选中题目”，一次性把多道题加入考试。
+- 已在考试中的题目会标记为“已在考试中”，不能重复加入。
+
+涉及文件：
+
+```text
+src/app/admin/exams/[id]/edit/page.tsx
+src/app/admin/exams/exam-edit-client.tsx
+src/app/api/admin/problems/search/route.ts
+src/app/api/admin/exams/[id]/problems/route.ts
+```
+
+运维注意：在 2 核 2GB 服务器上，如果直接在 `/www/oj` 线上目录执行 `npm run build`，建议先 `pm2 stop oj`，构建完成后再 `pm2 restart oj --update-env`。否则构建过程可能短时间打满资源，导致 SSH 或 HTTP 健康检查超时。
