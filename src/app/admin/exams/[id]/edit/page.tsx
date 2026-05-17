@@ -25,24 +25,31 @@ export default async function AdminEditExamPage({ params }: PageProps) {
   const examId = Number(id);
   if (!Number.isInteger(examId)) notFound();
 
-  const exam = await prisma.exam.findUnique({
-    where: { id: examId },
-    include: {
-      problems: {
-        include: {
-          problem: {
-            select: {
-              id: true,
-              title: true,
-              difficulty: true,
-              category: true,
+  const [exam, categoryRows] = await Promise.all([
+    prisma.exam.findUnique({
+      where: { id: examId },
+      include: {
+        problems: {
+          include: {
+            problem: {
+              select: {
+                id: true,
+                title: true,
+                difficulty: true,
+                category: true,
+              },
             },
           },
+          orderBy: [{ order: "asc" }, { id: "asc" }],
         },
-        orderBy: [{ order: "asc" }, { id: "asc" }],
       },
-    },
-  });
+    }),
+    prisma.problem.findMany({
+      distinct: ["category"],
+      orderBy: { category: "asc" },
+      select: { category: true },
+    }),
+  ]);
 
   if (!exam) notFound();
   const clientExam = {
@@ -67,7 +74,10 @@ export default async function AdminEditExamPage({ params }: PageProps) {
           返回考试管理
         </Link>
       </div>
-      <ExamEditClient exam={clientExam} />
+      <ExamEditClient
+        categories={categoryRows.map((item) => item.category).filter(Boolean)}
+        exam={clientExam}
+      />
     </AppShell>
   );
 }

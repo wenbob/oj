@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import type { ReactNode } from "react";
+import { useMemo, useState } from "react";
 import { ExamFormClient } from "./exam-form-client";
 
 type ExamProblemItem = {
@@ -34,23 +35,49 @@ type SearchProblem = {
   category: string;
 };
 
-export function ExamEditClient({ exam }: { exam: ExamValue }) {
+export function ExamEditClient({
+  categories = [],
+  exam,
+}: {
+  categories?: string[];
+  exam: ExamValue;
+}) {
   const router = useRouter();
   const [problems, setProblems] = useState(exam.problems);
   const [keyword, setKeyword] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("");
+  const [categoryOptions, setCategoryOptions] = useState(categories);
   const [results, setResults] = useState<SearchProblem[]>([]);
+  const [selectedProblemIds, setSelectedProblemIds] = useState<number[]>([]);
   const [message, setMessage] = useState("");
   const [pending, setPending] = useState(false);
   const [orderValue, setOrderValue] = useState(
     String((problems.at(-1)?.order ?? 0) + 1),
   );
   const [scoreValue, setScoreValue] = useState("100");
+  const existingProblemIds = useMemo(
+    () => new Set(problems.map((problem) => problem.problemId)),
+    [problems],
+  );
+  const selectableResults = results.filter(
+    (problem) => !existingProblemIds.has(problem.id),
+  );
+  const allSelectableSelected =
+    selectableResults.length > 0 &&
+    selectableResults.every((problem) => selectedProblemIds.includes(problem.id));
 
-  async function search() {
+  async function search(
+    nextKeyword = keyword,
+    nextCategory = selectedCategory,
+  ) {
     setPending(true);
     setMessage("");
+    setSelectedProblemIds([]);
+    const query = new URLSearchParams();
+    if (nextKeyword.trim()) query.set("keyword", nextKeyword.trim());
+    if (nextCategory) query.set("category", nextCategory);
     const response = await fetch(
-      `/api/admin/problems/search?keyword=${encodeURIComponent(keyword)}`,
+      `/api/admin/problems/search?${query.toString()}`,
     );
     const data = await response.json().catch(() => ({}));
     setPending(false);
@@ -60,17 +87,31 @@ export function ExamEditClient({ exam }: { exam: ExamValue }) {
       return;
     }
     setResults(data.problems ?? []);
+    if (Array.isArray(data.categories)) {
+      setCategoryOptions(data.categories);
+    }
+  }
+
+  function readAddValues() {
+    const score = Number(scoreValue);
+    const order =
+      orderValue.trim() === ""
+        ? (problems.at(-1)?.order ?? 0) + 1
+        : Number(orderValue);
+    if (!Number.isInteger(score) || score <= 0) {
+      setMessage("题目分值必须为正整数");
+      return null;
+    }
+    if (!Number.isInteger(order) || order < 0) {
+      setMessage("排序值不能为负数");
+      return null;
+    }
+    return { order, score };
   }
 
   async function addProblem(problemId: number) {
-    const score = Number(scoreValue);
-    const order = Number(orderValue);
-    if (!Number.isInteger(score) || score <= 0) {
-      setMessage("题目分值必须为正整数");
-      return;
-    }
-    if (orderValue && (!Number.isInteger(order) || order < 0)) {
-      setMessage("排序值不能为负数");
+    const values = readAddValues();
+    if (!values) {
       return;
     }
 
@@ -81,8 +122,8 @@ export function ExamEditClient({ exam }: { exam: ExamValue }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         problemId,
-        order: orderValue,
-        score: scoreValue,
+        order: values.order,
+        score: values.score,
       }),
     });
     const data = await response.json().catch(() => ({}));
@@ -98,9 +139,77 @@ export function ExamEditClient({ exam }: { exam: ExamValue }) {
         (a, b) => a.order - b.order || a.id - b.id,
       ),
     );
-    setOrderValue(String(Number(orderValue || "0") + 1));
+    setOrderValue(String(values.order + 1));
+    setSelectedProblemIds((current) =>
+      current.filter((selectedId) => selectedId !== problemId),
+    );
     setMessage("题目已添加到考试");
     router.refresh();
+  }
+
+  async function addSelectedProblems() {
+    const values = readAddValues();
+    if (!values) return;
+
+    const problemIds = selectedProblemIds.filter(
+      (problemId) => !existingProblemIds.has(problemId),
+    );
+    if (problemIds.length === 0) {
+      setMessage("请先选择要添加的题目");
+      return;
+    }
+
+    setPending(true);
+    setMessage("");
+    const response = await fetch(`/api/admin/exams/${exam.id}/problems`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        problemIds,
+        order: values.order,
+        score: values.score,
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+    setPending(false);
+
+    if (!response.ok) {
+      setMessage(data.error ?? "批量添加失败");
+      return;
+    }
+
+    const addedProblems = data.examProblems ?? [];
+    setProblems((current) =>
+      [...current, ...addedProblems].sort(
+        (a, b) => a.order - b.order || a.id - b.id,
+      ),
+    );
+    setSelectedProblemIds([]);
+    setOrderValue(String(values.order + addedProblems.length));
+    setMessage(`已添加 ${addedProblems.length} 道题到考试`);
+    router.refresh();
+  }
+
+  function selectCategory(category: string) {
+    setSelectedCategory(category);
+    void search(keyword, category);
+  }
+
+  function toggleProblem(problemId: number) {
+    if (existingProblemIds.has(problemId)) return;
+    setSelectedProblemIds((current) =>
+      current.includes(problemId)
+        ? current.filter((selectedId) => selectedId !== problemId)
+        : [...current, problemId],
+    );
+  }
+
+  function toggleAllSelectableResults() {
+    if (allSelectableSelected) {
+      setSelectedProblemIds([]);
+      return;
+    }
+    setSelectedProblemIds(selectableResults.map((problem) => problem.id));
   }
 
   async function removeProblem(item: ExamProblemItem) {
@@ -203,6 +312,24 @@ export function ExamEditClient({ exam }: { exam: ExamValue }) {
           </p>
         ) : null}
 
+        <div className="mt-5 flex flex-wrap gap-2">
+          <CategoryButton
+            active={selectedCategory === ""}
+            onClick={() => selectCategory("")}
+          >
+            全部
+          </CategoryButton>
+          {categoryOptions.map((category) => (
+            <CategoryButton
+              active={selectedCategory === category}
+              key={category}
+              onClick={() => selectCategory(category)}
+            >
+              {category}
+            </CategoryButton>
+          ))}
+        </div>
+
         <div className="mt-5 grid gap-3 md:grid-cols-[minmax(0,1fr)_120px_120px_110px]">
           <label className="grid gap-2 text-sm font-bold text-ink-800">
             搜索题目名称
@@ -234,7 +361,7 @@ export function ExamEditClient({ exam }: { exam: ExamValue }) {
           <button
             className="btn btn-secondary self-end justify-center"
             disabled={pending}
-            onClick={search}
+            onClick={() => search()}
             type="button"
           >
             搜索
@@ -243,20 +370,53 @@ export function ExamEditClient({ exam }: { exam: ExamValue }) {
 
         {results.length > 0 ? (
           <div className="mt-4 grid gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-3 border border-ink-950/10 bg-white/55 p-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  className="btn btn-secondary px-3 py-2 text-sm"
+                  disabled={pending || selectableResults.length === 0}
+                  onClick={toggleAllSelectableResults}
+                  type="button"
+                >
+                  {allSelectableSelected ? "取消全选当前结果" : "全选当前结果"}
+                </button>
+                <span className="text-sm font-bold text-ink-600">
+                  已选择 {selectedProblemIds.length} 道题
+                </span>
+              </div>
+              <button
+                className="btn btn-primary px-3 py-2 text-sm"
+                disabled={pending || selectedProblemIds.length === 0}
+                onClick={addSelectedProblems}
+                type="button"
+              >
+                添加选中题目
+              </button>
+            </div>
             {results.map((problem) => (
               <div
                 className="flex flex-wrap items-center justify-between gap-3 border border-ink-950/10 bg-white/65 p-3"
                 key={problem.id}
               >
-                <div>
-                  <p className="font-black">{problem.title}</p>
-                  <p className="text-sm font-semibold text-ink-600">
-                    {problem.category || "未分类"} / {problem.difficulty}
-                  </p>
-                </div>
+                <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-3">
+                  <input
+                    checked={selectedProblemIds.includes(problem.id)}
+                    className="mt-1 h-4 w-4"
+                    disabled={existingProblemIds.has(problem.id)}
+                    onChange={() => toggleProblem(problem.id)}
+                    type="checkbox"
+                  />
+                  <span className="min-w-0">
+                    <span className="block font-black">{problem.title}</span>
+                    <span className="text-sm font-semibold text-ink-600">
+                      {problem.category || "未分类"} / {problem.difficulty}
+                      {existingProblemIds.has(problem.id) ? " / 已在考试中" : ""}
+                    </span>
+                  </span>
+                </label>
                 <button
                   className="btn btn-primary px-3 py-2 text-sm"
-                  disabled={pending}
+                  disabled={pending || existingProblemIds.has(problem.id)}
                   onClick={() => addProblem(problem.id)}
                   type="button"
                 >
@@ -354,5 +514,29 @@ export function ExamEditClient({ exam }: { exam: ExamValue }) {
         </div>
       </section>
     </div>
+  );
+}
+
+function CategoryButton({
+  active,
+  children,
+  onClick,
+}: {
+  active: boolean;
+  children: ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      className={`border px-3 py-2 text-sm font-black ${
+        active
+          ? "border-ink-950 bg-ink-950 text-white"
+          : "border-ink-950/10 bg-white/65 text-ink-700 hover:bg-white"
+      }`}
+      onClick={onClick}
+      type="button"
+    >
+      {children}
+    </button>
   );
 }
