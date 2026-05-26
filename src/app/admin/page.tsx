@@ -18,7 +18,6 @@ const adminNav = [
   { href: "/admin/problems", label: "题目管理" },
   { href: "/admin/exams", label: "模拟考试" },
   { href: "/admin/users", label: "用户管理" },
-  { href: "/admin/settings", label: "系统设置" },
   { href: "/admin/submissions", label: "日常提交" },
   { href: "/admin/exam-submissions", label: "考试提交" },
 ];
