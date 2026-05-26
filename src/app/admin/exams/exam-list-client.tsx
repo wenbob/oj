@@ -40,7 +40,7 @@ export function ExamListClient({ exams }: { exams: ExamListItem[] }) {
   return (
     <>
       {message ? (
-        <p className="mb-4 border border-ink-950/10 bg-white/70 px-3 py-2 text-sm font-semibold text-ink-700">
+        <p className="mx-5 mt-4 border border-ink-950/10 bg-white/70 px-3 py-2 text-sm font-semibold text-ink-700">
           {message}
         </p>
       ) : null}

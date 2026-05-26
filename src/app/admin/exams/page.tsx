@@ -44,9 +44,7 @@ export default async function AdminExamsPage() {
             新建考试
           </Link>
         </div>
-        <div className="p-5">
-          <ExamListClient exams={clientExams} />
-        </div>
+        <ExamListClient exams={clientExams} />
       </section>
     </AppShell>
   );
