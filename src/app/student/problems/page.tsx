@@ -8,6 +8,7 @@ import {
   readPaginationFromObject,
 } from "@/lib/pagination";
 import { prisma } from "@/lib/prisma";
+import { getPracticeSubmissionCountsByProblem } from "@/lib/problemSubmissionCounts";
 
 const studentNav = [
   { href: "/student", label: "首页" },
@@ -39,7 +40,6 @@ export default async function StudentProblemsPage({ searchParams }: PageProps) {
         title: true,
         difficulty: true,
         category: true,
-        _count: { select: { submissions: true } },
       },
       orderBy: { createdAt: "desc" },
       skip,
@@ -51,6 +51,10 @@ export default async function StudentProblemsPage({ searchParams }: PageProps) {
       orderBy: { category: "asc" },
     }),
   ]);
+  const submissionCounts = await getPracticeSubmissionCountsByProblem({
+    problemIds: problems.map((problem) => problem.id),
+    userId: user.id,
+  });
 
   const categories = Array.from(
     new Set(
@@ -98,7 +102,7 @@ export default async function StudentProblemsPage({ searchParams }: PageProps) {
                 <th className="table-head px-5 py-3">标题</th>
                 <th className="table-head px-5 py-3">难度</th>
                 <th className="table-head px-5 py-3">分类</th>
-                <th className="table-head px-5 py-3">提交</th>
+                <th className="table-head px-5 py-3">我的提交</th>
                 <th className="table-head px-5 py-3 text-right">操作</th>
               </tr>
             </thead>
@@ -113,7 +117,7 @@ export default async function StudentProblemsPage({ searchParams }: PageProps) {
                     {problem.category || "未分类"}
                   </td>
                   <td className="px-5 py-4 text-sm font-semibold text-ink-700">
-                    {problem._count.submissions}
+                    {submissionCounts.get(problem.id) ?? 0}
                   </td>
                   <td className="px-5 py-4 text-right">
                     <Link

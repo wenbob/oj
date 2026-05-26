@@ -5,6 +5,7 @@ import {
   readPaginationFromUrl,
 } from "@/lib/pagination";
 import { prisma } from "@/lib/prisma";
+import { getPracticeSubmissionCountsByProblem } from "@/lib/problemSubmissionCounts";
 
 export async function GET(request: NextRequest) {
   const auth = await requireApiUser(request);
@@ -29,10 +30,18 @@ export async function GET(request: NextRequest) {
     }),
     prisma.problem.count({ where }),
   ]);
+  const submissionCounts = await getPracticeSubmissionCountsByProblem({
+    problemIds: problems.map((problem) => problem.id),
+    userId: auth.user?.id,
+  });
+  const items = problems.map((problem) => ({
+    ...problem,
+    mySubmissionCount: submissionCounts.get(problem.id) ?? 0,
+  }));
 
   return NextResponse.json({
-    items: problems,
-    problems,
+    items,
+    problems: items,
     ...buildPaginationMeta({ page, pageSize, total }),
   });
 }

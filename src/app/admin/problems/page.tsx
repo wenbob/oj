@@ -5,6 +5,7 @@ import {
   readPaginationFromObject,
 } from "@/lib/pagination";
 import { prisma } from "@/lib/prisma";
+import { getPracticeSubmissionCountsByProblem } from "@/lib/problemSubmissionCounts";
 import { ProblemManager } from "./problem-manager";
 
 const adminNav = [
@@ -35,7 +36,6 @@ export default async function AdminProblemsPage({ searchParams }: PageProps) {
       where,
       include: {
         testCases: { orderBy: { id: "asc" } },
-        _count: { select: { submissions: true } },
       },
       orderBy: { createdAt: "desc" },
       skip,
@@ -47,6 +47,9 @@ export default async function AdminProblemsPage({ searchParams }: PageProps) {
       orderBy: { category: "asc" },
     }),
   ]);
+  const submissionCounts = await getPracticeSubmissionCountsByProblem({
+    problemIds: problems.map((problem) => problem.id),
+  });
 
   const initialProblems = problems.map((problem) => ({
     id: problem.id,
@@ -65,7 +68,7 @@ export default async function AdminProblemsPage({ searchParams }: PageProps) {
       output: testCase.output,
       isSample: testCase.isSample,
     })),
-    submissions: problem._count.submissions,
+    submissions: submissionCounts.get(problem.id) ?? 0,
   }));
 
   const categories = Array.from(

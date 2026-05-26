@@ -8,6 +8,7 @@ import {
   readPaginationFromObject,
 } from "@/lib/pagination";
 import { prisma } from "@/lib/prisma";
+import { getPracticeSubmissionCountsByProblem } from "@/lib/problemSubmissionCounts";
 
 const adminNav = [
   { href: "/admin", label: "后台首页" },
@@ -40,7 +41,6 @@ export default async function AdminPracticePage({ searchParams }: PageProps) {
         title: true,
         difficulty: true,
         category: true,
-        _count: { select: { submissions: true } },
       },
       orderBy: { createdAt: "desc" },
       skip,
@@ -52,6 +52,9 @@ export default async function AdminPracticePage({ searchParams }: PageProps) {
       orderBy: { category: "asc" },
     }),
   ]);
+  const submissionCounts = await getPracticeSubmissionCountsByProblem({
+    problemIds: problems.map((problem) => problem.id),
+  });
 
   const categories = Array.from(
     new Set(
@@ -108,7 +111,13 @@ export default async function AdminPracticePage({ searchParams }: PageProps) {
                     {problem.category || "未分类"}
                   </td>
                   <td className="px-5 py-4 text-sm font-semibold text-ink-700">
-                    {problem._count.submissions}
+                    <Link
+                      className="font-black text-steel underline-offset-4 hover:text-clay hover:underline"
+                      href={`/admin/submissions?problemId=${problem.id}`}
+                      title={`查看《${problem.title}》的提交记录`}
+                    >
+                      {submissionCounts.get(problem.id) ?? 0}
+                    </Link>
                   </td>
                   <td className="px-5 py-4 text-right">
                     <Link

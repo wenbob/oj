@@ -372,7 +372,13 @@ export function ProblemManager({
                     {problem.testCases.length}
                   </td>
                   <td className="px-5 py-4 text-sm font-semibold text-ink-700">
-                    {problem.submissions ?? problem._count?.submissions ?? 0}
+                    <Link
+                      className="font-black text-steel underline-offset-4 hover:text-clay hover:underline"
+                      href={`/admin/submissions?problemId=${problem.id}`}
+                      title={`查看《${problem.title}》的提交记录`}
+                    >
+                      {problem.submissions ?? problem._count?.submissions ?? 0}
+                    </Link>
                   </td>
                   <td className="px-5 py-4">
                     <div className="flex justify-end gap-2">
