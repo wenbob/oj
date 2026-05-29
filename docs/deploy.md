@@ -311,11 +311,17 @@ npm run check:env
 npm run db:deploy
 docker build -t oj-cpp-judge ./docker/judge-cpp
 pm2 stop oj
-npm run build
+NEXT_TELEMETRY_DISABLED=1 NEXT_PRIVATE_BUILD_WORKER_COUNT=1 NODE_OPTIONS='--max-old-space-size=768' npm run build
 pm2 restart oj --update-env
 ```
 
-当前 2 核 2GB 服务器资源有限。如果是在 `/www/oj` 当前线上目录直接构建，建议先 `pm2 stop oj` 再执行 `npm run build`，避免构建和线上 Node 进程同时争抢内存导致 SSH、HTTP 短暂卡住。使用 `/www/oj-new` 新目录构建时，可以先在新目录完成构建，再切换目录并重启 PM2。
+当前 2 核 2GB 服务器资源有限。如果是在 `/www/oj` 当前线上目录直接构建，必须先 `pm2 stop oj` 再低内存构建，避免构建和线上 Node 进程同时争抢内存导致 SSH、HTTP 短暂卡住。低内存构建固定使用：
+
+```bash
+NEXT_TELEMETRY_DISABLED=1 NEXT_PRIVATE_BUILD_WORKER_COUNT=1 NODE_OPTIONS='--max-old-space-size=768' npm run build
+```
+
+使用 `/www/oj-new` 新目录构建时，也建议使用同样的低内存构建命令。确认构建成功后再切换目录并重启 PM2。
 
 ## 8. 安全收尾清单
 
@@ -407,7 +413,7 @@ npm ci --registry=https://registry.npmmirror.com --no-audit --no-fund
 npm run check:env
 npm run db:deploy
 docker build -t oj-cpp-judge ./docker/judge-cpp
-npm run build
+NEXT_TELEMETRY_DISABLED=1 NEXT_PRIVATE_BUILD_WORKER_COUNT=1 NODE_OPTIONS='--max-old-space-size=768' npm run build
 ```
 
 确认无误后再切换目录。切换前必须备份数据库，并确认新目录存在 `.next`、`.env` 和 `prisma/prod.db`：
@@ -449,7 +455,7 @@ npm run check:env
 npm run db:deploy
 docker build -t oj-cpp-judge ./docker/judge-cpp
 pm2 stop oj
-npm run build
+NEXT_TELEMETRY_DISABLED=1 NEXT_PRIVATE_BUILD_WORKER_COUNT=1 NODE_OPTIONS='--max-old-space-size=768' npm run build
 pm2 restart oj --update-env
 ```
 

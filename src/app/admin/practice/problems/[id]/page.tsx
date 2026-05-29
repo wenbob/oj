@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
+import { CopyProblemButton } from "@/components/CopyProblemButton";
 import { ProblemSamples } from "@/components/ProblemSamples";
 import { ProblemSubmitForm } from "@/components/ProblemSubmitForm";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -69,6 +70,16 @@ export default async function AdminPracticeProblemPage({ params }: PageProps) {
             <span className="border border-ink-950/10 bg-white/65 px-2.5 py-1 text-xs font-bold text-ink-700">
               {problem.category}
             </span>
+            <CopyProblemButton
+              category={problem.category}
+              dataRange={problem.dataRange}
+              description={problem.description}
+              difficulty={problem.difficulty}
+              inputDescription={problem.inputDescription}
+              outputDescription={problem.outputDescription}
+              samples={samples}
+              title={problem.title}
+            />
           </div>
           <ProblemSection title="题目描述" value={problem.description} />
           <ProblemSection title="输入格式" value={problem.inputDescription} />

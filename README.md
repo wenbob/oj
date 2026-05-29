@@ -30,6 +30,7 @@
 - [2026-05-12 单文件热更新记录](docs/ops-review-2026-05-12.md)
 - [2026-05-16 复制代码修复记录](docs/ops-review-2026-05-16.md)
 - [2026-05-17 模拟考试切题状态修复记录](docs/ops-review-2026-05-17.md)
+- [2026-05-29 复制本题与低内存上线记录](docs/ops-review-2026-05-29.md)
 
 ## 技术栈
 
@@ -449,6 +450,7 @@ POST /api/admin/problems/bulk-delete
 - 题目列表支持分类筛选和分页。
 - 题目列表中的提交数量可点击进入该题日常提交记录筛选页。
 - 题目详情复用 Monaco Editor 和 Judge 流程。
+- 题目详情页提供管理员专用“复制本题”按钮，可复制 Markdown 格式完整题面。
 - 管理员提交也保存到 `Submission`，并可在管理员提交记录中查看。
 
 ### 用户管理
@@ -1163,6 +1165,14 @@ npm run check:env
 ```bash
 npm ci --registry=https://registry.npmmirror.com --no-audit --no-fund
 npm run build
+```
+
+线上 2 核 2GB 服务器资源有限，在 `/www/oj` 当前线上目录构建时应先停止 PM2，并使用低内存构建命令：
+
+```bash
+pm2 stop oj
+NEXT_TELEMETRY_DISABLED=1 NEXT_PRIVATE_BUILD_WORKER_COUNT=1 NODE_OPTIONS='--max-old-space-size=768' npm run build
+pm2 restart oj --update-env
 ```
 
 当前 `next.config.ts` 已启用：
