@@ -36,7 +36,7 @@ Generating static pages using 1 worker
 /www/backups/prod-20260529-142456-before-copy-problem-button.db
 ```
 
-随后清理了更早的 `/www/backups` 旧备份和临时代码备份，只保留：
+`2026-05-29` 当次发布结束后，清理了更早的 `/www/backups` 旧备份和临时代码备份，当时只保留：
 
 ```text
 /www/backups/prod-20260529-142456-before-copy-problem-button.db
@@ -47,6 +47,14 @@ Generating static pages using 1 worker
 ```text
 /www/oj/prisma/prod.db
 ```
+
+`2026-05-31` 学生端日常练习详情和模拟考试答题页复用“复制本题”按钮。发布前新增生产数据库备份：
+
+```text
+/www/backups/prod-20260531-091635-before-student-copy-problem.db
+```
+
+本次仍使用单 worker 低内存构建流程，构建成功后 `/api/health` 返回 `ok: true`，`judgeMode` 为 `docker`。
 
 ## 经验结论
 

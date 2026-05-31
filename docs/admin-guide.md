@@ -511,7 +511,7 @@ docker info
 如果误删题目、用户或考试：
 
 1. 先停止服务。
-2. 找到最近的备份文件：
+2. 按时间戳找到本次误操作前生成的备份文件：
 
 ```text
 backups/
@@ -531,7 +531,8 @@ backups/
 
 ```bash
 grep -n 'execCommand\|isSecureContext' /www/oj/src/lib/copyToClipboard.ts
-npm run build
+pm2 stop oj
+NEXT_TELEMETRY_DISABLED=1 NEXT_PRIVATE_BUILD_WORKER_COUNT=1 NODE_OPTIONS='--max-old-space-size=768' npm run build
 pm2 restart oj --update-env
 curl http://127.0.0.1:3000/api/health
 ```
@@ -584,10 +585,19 @@ curl http://127.0.0.1:3000/api/health
 npm install
 ```
 
-构建：
+本地构建：
 
 ```bash
 npm run build
+```
+
+线上 2 核 2GB 服务器构建：
+
+```bash
+pm2 stop oj
+NEXT_TELEMETRY_DISABLED=1 NEXT_PRIVATE_BUILD_WORKER_COUNT=1 NODE_OPTIONS='--max-old-space-size=768' npm run build
+pm2 restart oj --update-env
+curl http://127.0.0.1:3000/api/health
 ```
 
 启动生产服务：

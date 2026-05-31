@@ -226,7 +226,7 @@ pm2 restart oj --update-env
 curl http://127.0.0.1:3000/api/health
 ```
 
-如果健康检查失败，立即恢复最近旧版本：
+如果健康检查失败，立即恢复切换前保留的旧版本：
 
 ```bash
 cd /www

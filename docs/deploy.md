@@ -385,7 +385,7 @@ curl http://127.0.0.1:3000
 数据库误操作：
 
 1. 立即停止服务：`pm2 stop oj`
-2. 从 `/www/backups` 找到最近备份。
+2. 从 `/www/backups` 按时间戳找到切换前生成的备份。
 3. 复制回 `/www/oj/prisma/prod.db`
 4. 重启服务：`pm2 start oj`
 
