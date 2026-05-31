@@ -81,6 +81,12 @@ export function ExamListClient({ exams }: { exams: ExamListItem[] }) {
                   <div className="flex flex-wrap justify-end gap-2">
                     <Link
                       className="btn btn-secondary px-3 py-2 text-sm"
+                      href={`/admin/exams/${exam.id}/practice`}
+                    >
+                      进入做题
+                    </Link>
+                    <Link
+                      className="btn btn-secondary px-3 py-2 text-sm"
                       href={`/admin/exams/${exam.id}/edit`}
                     >
                       编辑

@@ -44,6 +44,7 @@ export function ProblemSubmitForm({
   detailHrefBase = "/student/submissions",
   disabled = false,
   disabledMessage,
+  draftStorageKey,
   examId,
   examEndsAt,
   fromSubmissionId,
@@ -54,6 +55,7 @@ export function ProblemSubmitForm({
   detailHrefBase?: string;
   disabled?: boolean;
   disabledMessage?: string;
+  draftStorageKey?: string;
   examId?: number;
   examEndsAt?: string | null;
   fromSubmissionId?: number;
@@ -61,9 +63,11 @@ export function ProblemSubmitForm({
   refreshOnSuccess?: boolean;
 }) {
   const router = useRouter();
-  const storageKey = examId
-    ? `oj-code-exam-${examId}-problem-${problemId}`
-    : `oj-code-problem-${problemId}`;
+  const storageKey =
+    draftStorageKey ??
+    (examId
+      ? `oj-code-exam-${examId}-problem-${problemId}`
+      : `oj-code-problem-${problemId}`);
   const initialCode =
     defaultCodeTemplate && defaultCodeTemplate.trim()
       ? defaultCodeTemplate

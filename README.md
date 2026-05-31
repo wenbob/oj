@@ -529,6 +529,7 @@ POST /api/admin/problems/bulk-delete
 /admin/exams
 /admin/exams/new
 /admin/exams/[id]/edit
+/admin/exams/[id]/practice
 /admin/exams/[id]/records
 ```
 
@@ -554,6 +555,7 @@ POST /api/admin/problems/bulk-delete
 - 设置考试题目顺序。
 - 设置每题分值。
 - 通过 Markdown 导入题目并自动加入考试。
+- 从考试列表进入管理员练习模式，按考试题单逐题查看和提交代码；该模式不限时、不需要交卷，提交计入日常提交。
 - 查看考试记录。
 
 考试状态：
