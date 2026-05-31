@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { CopyProblemButton } from "@/components/CopyProblemButton";
 import { ExamCountdown } from "@/components/ExamCountdown";
 import { ExamSubmitButton } from "@/components/ExamSubmitButton";
 import { ProblemSamples } from "@/components/ProblemSamples";
@@ -204,6 +205,16 @@ export default async function StudentExamTakePage({
                 <span className="border border-ink-950/10 bg-white/65 px-2.5 py-1 text-xs font-bold text-ink-700">
                   {selectedProblem.category || "未分类"}
                 </span>
+                <CopyProblemButton
+                  category={selectedProblem.category}
+                  dataRange={selectedProblem.dataRange}
+                  description={selectedProblem.description}
+                  difficulty={selectedProblem.difficulty}
+                  inputDescription={selectedProblem.inputDescription}
+                  outputDescription={selectedProblem.outputDescription}
+                  samples={samples}
+                  title={selectedProblem.title}
+                />
               </div>
               <ProblemSection title="题目描述" value={selectedProblem.description} />
               <ProblemSection title="输入格式" value={selectedProblem.inputDescription} />

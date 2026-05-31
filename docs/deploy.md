@@ -97,7 +97,7 @@ docker build -t oj-cpp-judge ./docker/judge-cpp
 构建 Next.js：
 
 ```bash
-npm run build
+NEXT_TELEMETRY_DISABLED=1 NEXT_PRIVATE_BUILD_WORKER_COUNT=1 NODE_OPTIONS='--max-old-space-size=768' npm run build
 ```
 
 启动服务：

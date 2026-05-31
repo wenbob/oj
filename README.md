@@ -195,6 +195,7 @@ npm run db:status
 - 样例优先读取 `TestCase.isSample = true` 的全部测试点，按顺序展示多组样例。
 - 老数据没有样例测试点时，可 fallback 到 `Problem.sampleInput` 和 `Problem.sampleOutput`。
 - 样例标题在代码框外，代码框内只显示真实输入输出内容。
+- 学生日常刷题详情和模拟考试答题页提供“复制本题”按钮，可复制 Markdown 格式完整题面。
 
 ### Monaco Editor 代码编辑器
 
