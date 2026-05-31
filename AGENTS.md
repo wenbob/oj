@@ -53,4 +53,4 @@ npm run build
 | `docs/admin-guide.md` | 管理员使用和运维手册 |
 | `docs/student-guide.md` | 学生使用说明 |
 | `docs/ops-review-2026-05-29.md` | 低内存构建事故和后续发布记录 |
-
+| `docs/ops-review-2026-05-31.md` | 学生复制题面和管理员考试练习模式发布记录 |
