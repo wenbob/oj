@@ -33,6 +33,10 @@ Collecting page data using 1 worker
 Generating static pages using 1 worker
 ```
 
+## 编辑器策略
+
+- `src/components/CodeEditor.tsx` 是全站共用 Monaco 编辑器。自动代码提示、单词建议、Tab 补全、参数提示和内联建议默认关闭；不要在未明确要求时重新开启。
+
 ## 本地质量检查
 
 ```bash
@@ -54,3 +58,4 @@ npm run build
 | `docs/student-guide.md` | 学生使用说明 |
 | `docs/ops-review-2026-05-29.md` | 低内存构建事故和后续发布记录 |
 | `docs/ops-review-2026-05-31.md` | 学生复制题面和管理员考试练习模式发布记录 |
+| `docs/ops-review-2026-06-07.md` | Monaco 代码提示关闭发布记录 |
