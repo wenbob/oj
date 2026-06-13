@@ -80,6 +80,7 @@ export function ProblemSubmitForm({
   const [result, setResult] = useState<SubmissionResult | null>(null);
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
+  const [showAcceptedPopup, setShowAcceptedPopup] = useState(false);
   const [timeExpired, setTimeExpired] = useState(false);
 
   useEffect(() => {
@@ -90,6 +91,7 @@ export function ProblemSubmitForm({
     setLoadError("");
     setResult(null);
     setError("");
+    setShowAcceptedPopup(false);
     setCode(initialCode);
 
     const frame = window.requestAnimationFrame(async () => {
@@ -164,6 +166,16 @@ export function ProblemSubmitForm({
     window.localStorage.setItem(storageKey, code);
   }, [code, draftLoaded, loadedStorageKey, storageKey]);
 
+  useEffect(() => {
+    if (!showAcceptedPopup) return;
+
+    const timer = window.setTimeout(() => {
+      setShowAcceptedPopup(false);
+    }, 1000);
+
+    return () => window.clearTimeout(timer);
+  }, [showAcceptedPopup]);
+
   async function submit() {
     if (disabled || timeExpired) {
       setError(disabledMessage ?? "考试已结束，不能继续提交");
@@ -173,6 +185,7 @@ export function ProblemSubmitForm({
     setPending(true);
     setError("");
     setResult(null);
+    setShowAcceptedPopup(false);
 
     const response = await fetch(`/api/problems/${problemId}/submit`, {
       method: "POST",
@@ -187,6 +200,9 @@ export function ProblemSubmitForm({
       return;
     }
     setResult(data.submission);
+    if (data.submission?.status === "Accepted") {
+      setShowAcceptedPopup(true);
+    }
     if (refreshOnSuccess) {
       router.refresh();
     }
@@ -274,6 +290,33 @@ export function ProblemSubmitForm({
           >
             查看详情
           </Link>
+        </div>
+      ) : null}
+      {showAcceptedPopup ? (
+        <div
+          aria-label="通过此题提示"
+          className="ac-success-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4"
+          onClick={() => setShowAcceptedPopup(false)}
+          role="dialog"
+        >
+          <div
+            className="ac-success-pop relative max-h-[86vh] max-w-[86vw]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              aria-label="关闭通过提示"
+              className="hidden"
+              onClick={() => setShowAcceptedPopup(false)}
+              type="button"
+            >
+              关闭
+            </button>
+            <img
+              alt="你通过了此题，恭喜"
+              className="max-h-[86vh] max-w-[86vw] object-contain"
+              src="/ac-success.png"
+            />
+          </div>
         </div>
       ) : null}
     </section>
