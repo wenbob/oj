@@ -397,6 +397,17 @@ curl http://127.0.0.1:3000
 
 发布包应包含源码、`public`、`prisma`、`scripts`、package 文件、`.next/standalone` 和 `.next/static`；必须排除 `.env`、`*.db`、SQLite 派生文件、`.next/cache`、仓库压缩包和本地 `node_modules` 根目录。standalone 目录内的最小运行依赖是 Next.js 产物的一部分，可以保留。
 
+打包前必须把静态资源复制进 standalone 运行目录：
+
+```bash
+mkdir -p .next/standalone/.next
+rm -rf .next/standalone/.next/static .next/standalone/public
+cp -a .next/static .next/standalone/.next/static
+cp -a public .next/standalone/public
+```
+
+缺少 `.next/standalone/.next/static` 时，登录页会返回 HTML，但 CSS/JS 请求 404，表现为页面无样式且登录无反应。
+
 上传到服务器 `/www` 后，只在服务器执行解包、环境复制、数据库迁移、预检和切换：
 
 ```bash
@@ -422,6 +433,8 @@ mkdir -p /www/backups
 cp /www/oj/prisma/prod.db /www/backups/prod-$(date +%Y%m%d-%H%M%S).db
 
 test -d /www/oj-new/.next
+test -d /www/oj-new/.next/standalone/.next/static
+test -d /www/oj-new/.next/standalone/public
 test -f /www/oj-new/.env
 test -d /www/oj-new/node_modules
 test -f /www/oj-new/prisma/prod.db
@@ -434,6 +447,12 @@ curl http://127.0.0.1:3000/api/health
 ```
 
 `npm run start` 会通过 `scripts/load-env.mjs` 预加载 `.env` 后启动 `.next/standalone/server.js`。不要绕过 `npm run start` 直接裸跑 standalone server，否则生产环境变量可能不会加载。
+
+切换后除了 `/api/health`，还要抽查登录页的 `_next/static` 资源：
+
+```bash
+curl -I http://127.0.0.1:3000/_next/static/某个实际 chunk.css
+```
 
 如果健康检查失败，立即把最新 `/www/oj-old-*` 恢复为 `/www/oj`。健康检查应保留足够重试窗口，避免服务尚未完全启动时误判失败。
 

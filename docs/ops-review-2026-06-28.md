@@ -18,6 +18,7 @@
 - Windows 本机构建出来的 `.next/standalone/node_modules` 可能包含 Windows 原生包，不能直接作为 Ubuntu 服务器产物使用。
 - 线上服务器内存较小，Next.js 全量构建容易和线上 Node 进程争抢内存。
 - Next.js standalone 服务本身不会自动读取项目 `.env`，需要通过项目启动脚本预加载。
+- Next.js standalone 运行目录不会自动包含外层 `.next/static` 和 `public`；发布包必须把它们复制到 `.next/standalone/.next/static` 和 `.next/standalone/public`。
 
 当前启动脚本为：
 
@@ -31,12 +32,35 @@
 
 - 发布前备份 `/www/oj/prisma/prod.db` 到 `/www/backups`，并确认备份文件存在。
 - 发布包不得包含 `.env`、`*.db`、SQLite 派生文件、`.next/cache`、仓库压缩包或本地 `node_modules` 根目录。
+- 发布包必须包含 `.next/standalone/.next/static` 和 `.next/standalone/public`，否则浏览器会拿不到 CSS/JS。
 - 在 `/www/oj-new` 中解包后，复制线上 `/www/oj/.env` 和最新生产数据库副本。
 - 复用服务器现有 `/www/oj/node_modules`；如果依赖清单发生变化，则在 `/www/oj-new` 重新执行 `npm ci`。
 - 先对 `/www/oj-new` 执行 `npm run check:env` 和 `npm run db:deploy`。
 - 正式切换前可临时用非 3000 端口启动 `/www/oj-new` 做 `/api/health` 预检。
 - 健康检查要设置足够重试窗口；2 秒以内未连上可能只是服务尚未完全启动，不能直接判断版本不可用。
 - 切换后执行 `pm2 restart oj --update-env`，并检查本地回环和公网 `/api/health`。
+- 切换后还要抽查登录页引用的 `_next/static` CSS/JS 是否返回 200；只检查 `/api/health` 不足以发现前端静态资源缺失。
+
+## 静态资源修复
+
+`2026-06-28` 当次发布后，登录页一度出现无样式、登录无反应。排查结果：
+
+- `/api/health` 正常，PM2 online。
+- `/login` 返回 200，但页面引用的 `_next/static` CSS/JS 返回 404。
+- 服务器存在 `/www/oj/.next/static`，但缺少 `/www/oj/.next/standalone/.next/static` 和 `/www/oj/.next/standalone/public`。
+
+已在线修复：
+
+```bash
+cd /www/oj
+mkdir -p .next/standalone/.next
+rm -rf .next/standalone/.next/static .next/standalone/public
+cp -a .next/static .next/standalone/.next/static
+cp -a public .next/standalone/public
+pm2 restart oj --update-env
+```
+
+修复后本机回环和公网访问的登录页 CSS/JS 均返回 200。
 
 ## GitHub 同步
 

@@ -16,7 +16,7 @@
 
 线上服务器为 2 核 CPU、2GB 内存、4GB swap。即使只修改一个页面，Next.js 仍会全量构建。常规发布优先在本地 Linux/Docker 环境生成 Next.js standalone 产物并上传，不要把 Windows 本机 `.next/standalone` 当作 Ubuntu 服务器产物。
 
-发布包必须排除 `.env`、数据库文件、备份文件、`.next/cache` 和压缩包；服务器继续使用 `/www/oj/.env` 和 `/www/oj/prisma/prod.db`。`npm run start` 通过 `scripts/load-env.mjs` 预加载 `.env` 后启动 `.next/standalone/server.js`，不要改成裸跑 `node .next/standalone/server.js`。
+发布包必须排除 `.env`、数据库文件、备份文件、`.next/cache` 和压缩包；服务器继续使用 `/www/oj/.env` 和 `/www/oj/prisma/prod.db`。Next standalone 包必须把 `.next/static` 复制到 `.next/standalone/.next/static`，把 `public` 复制到 `.next/standalone/public`，否则页面会无样式且无前端交互。`npm run start` 通过 `scripts/load-env.mjs` 预加载 `.env` 后启动 `.next/standalone/server.js`，不要改成裸跑 `node .next/standalone/server.js`。
 
 只有无法本地生成 Linux standalone 产物时，才在服务器停 PM2 后使用单 worker 低内存构建：
 

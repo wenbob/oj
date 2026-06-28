@@ -1265,6 +1265,8 @@ npm run build
 
 线上 2 核 2GB 服务器资源有限，后续常规发布优先在本地 Linux/Docker 环境生成 Next.js standalone 产物，再上传服务器切换目录。不要直接上传 Windows 本机生成的 `.next/standalone`，其中的原生依赖可能不能在 Ubuntu 服务器运行。
 
+打包 standalone 时必须把 `.next/static` 复制到 `.next/standalone/.next/static`，把 `public` 复制到 `.next/standalone/public`。如果漏掉这一步，服务端 HTML 和 `/api/health` 仍会正常，但浏览器里的 CSS/JS 会 404，页面会退化成无样式、无交互状态。
+
 如果必须在 `/www/oj` 当前线上目录构建，应先停止 PM2，并使用低内存构建命令：
 
 ```bash
