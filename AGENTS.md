@@ -7,6 +7,7 @@
 ## 数据安全红线
 
 - 生产数据库为 `/www/oj/prisma/prod.db`。
+- 生产 `.env` 的 `DATABASE_URL` 必须是 `file:/www/oj/prisma/prod.db` 这种绝对 SQLite 路径；禁止使用 `file:./prod.db`，standalone 会解析到错误目录。
 - 常规代码发布前必须先备份生产数据库到 `/www/backups`，并确认备份文件存在。
 - 常规发布禁止执行 `npm run seed` 或 `npm run db:init`。
 - 不要提交 `.env`、数据库文件、备份文件、`.next`、`node_modules` 或压缩包。

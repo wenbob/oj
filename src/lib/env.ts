@@ -12,6 +12,16 @@ function readPositiveInt(value: string | undefined) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
+function isRelativeSqliteUrl(value: string) {
+  if (!value.startsWith("file:")) return false;
+
+  const filePath = value.slice("file:".length);
+  if (filePath.startsWith("/")) return false;
+  if (/^[A-Za-z]:[\\/]/.test(filePath)) return false;
+
+  return true;
+}
+
 export function getJudgeMode(env: RuntimeEnv = process.env) {
   return (env.JUDGE_MODE ?? "local").trim().toLowerCase();
 }
@@ -38,6 +48,13 @@ export function validateProductionEnv(env: RuntimeEnv = process.env): EnvValidat
     if (!env[key]?.trim()) {
       errors.push(`生产环境缺少环境变量 ${key}`);
     }
+  }
+
+  const databaseUrl = env.DATABASE_URL?.trim() ?? "";
+  if (databaseUrl && isRelativeSqliteUrl(databaseUrl)) {
+    errors.push(
+      "生产环境 SQLite DATABASE_URL 必须使用绝对路径，例如 file:/www/oj/prisma/prod.db，避免 standalone 解析到错误目录",
+    );
   }
 
   const sessionSecret = env.SESSION_SECRET?.trim() ?? "";

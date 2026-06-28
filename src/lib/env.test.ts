@@ -5,7 +5,7 @@ import {
 } from "./env";
 
 const validProductionEnv = {
-  DATABASE_URL: "file:./prod.db",
+  DATABASE_URL: "file:/www/oj/prisma/prod.db",
   JUDGE_CONCURRENCY: "1",
   JUDGE_DOCKER_IMAGE: "oj-cpp-judge",
   JUDGE_MEMORY_LIMIT_MB: "128",
@@ -50,6 +50,18 @@ describe("production environment validation", () => {
 
     expect(result.ok).toBe(false);
     expect(result.errors).toContain("SESSION_SECRET 不能使用 .env.example 中的默认值");
+  });
+
+  it("rejects relative SQLite database paths in production", () => {
+    const result = validateProductionEnv({
+      ...validProductionEnv,
+      DATABASE_URL: "file:./prod.db",
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContain(
+      "生产环境 SQLite DATABASE_URL 必须使用绝对路径，例如 file:/www/oj/prisma/prod.db，避免 standalone 解析到错误目录",
+    );
   });
 
   it("rejects invalid positive integer settings", () => {

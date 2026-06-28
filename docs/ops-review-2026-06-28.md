@@ -62,6 +62,27 @@ pm2 restart oj --update-env
 
 修复后本机回环和公网访问的登录页 CSS/JS 均返回 200。
 
+## 数据库路径修复
+
+静态资源修复后，登录按钮仍停在“登录中”。排查结果：
+
+- `/api/auth/login` 返回 500。
+- PM2 日志显示 Prisma `P2021`：`The table main.User does not exist in the current database`。
+- 生产库 `/www/oj/prisma/prod.db` 表结构和用户数据正常。
+- `.env` 中 `DATABASE_URL="file:./prod.db"` 在 standalone 下被解析到 `.next/standalone/node_modules/.prisma/client/prod.db`，该文件为 0 字节空库。
+
+已在线修复：
+
+```env
+DATABASE_URL="file:/www/oj/prisma/prod.db"
+```
+
+修复后：
+
+- `/api/health` 正常。
+- 使用错误密码请求 `/api/auth/login` 返回 401 JSON，不再 500。
+- `npm run check:env` 已增加生产 SQLite 相对路径保护，避免后续发布复发。
+
 ## GitHub 同步
 
 功能提交：

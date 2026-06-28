@@ -56,7 +56,7 @@ nano .env
 
 ```env
 NODE_ENV=production
-DATABASE_URL="file:./prod.db"
+DATABASE_URL="file:/www/oj/prisma/prod.db"
 SESSION_SECRET="请替换成至少 32 位的强随机字符串"
 JUDGE_MODE=docker
 JUDGE_DOCKER_IMAGE=oj-cpp-judge
@@ -67,6 +67,8 @@ JUDGE_COMPILE_TIMEOUT_MS=45000
 ```
 
 不要把 `.env` 提交到 Git，也不要把真实密码或真实 secret 写进文档。
+
+生产环境使用 SQLite 时，`DATABASE_URL` 必须使用绝对路径。不要写 `file:./prod.db`；standalone 运行时会把相对路径解析到 `.next/standalone/node_modules/.prisma/client/` 附近，可能连到空数据库，导致登录接口报 `main.User does not exist`。
 
 检查环境变量：
 

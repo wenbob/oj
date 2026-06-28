@@ -1228,7 +1228,7 @@ docker build -t oj-cpp-judge ./docker/judge-cpp
 
 ```env
 NODE_ENV=production
-DATABASE_URL="file:./dev.db"
+DATABASE_URL="file:/www/oj/prisma/prod.db"
 SESSION_SECRET="请替换成至少 32 位的强随机字符串"
 JUDGE_MODE=docker
 JUDGE_DOCKER_IMAGE=oj-cpp-judge
@@ -1254,7 +1254,7 @@ npm run check:env
 - `JUDGE_TIME_LIMIT_MS` 必须大于 0。
 - `JUDGE_MEMORY_LIMIT_MB` 必须大于 0。
 - `JUDGE_COMPILE_TIMEOUT_MS` 可选，默认 30000ms，用于 Docker 编译阶段。
-- `DATABASE_URL` 不能为空。
+- `DATABASE_URL` 不能为空；生产 SQLite 必须使用绝对路径，例如 `file:/www/oj/prisma/prod.db`，不要使用 `file:./prod.db`，避免 standalone 解析到错误目录。
 
 ### 安装依赖和构建
 
