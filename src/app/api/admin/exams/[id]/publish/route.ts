@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireApiUser } from "@/lib/auth";
+import {
+  getObjectiveTotalScore,
+  parseObjectiveItems,
+  validateObjectiveItems,
+} from "@/lib/objectiveProblem";
 import { prisma } from "@/lib/prisma";
 
 type RouteContext = {
@@ -21,7 +26,13 @@ export async function POST(request: NextRequest, context: RouteContext) {
     include: {
       problems: {
         include: {
-          problem: { select: { title: true } },
+          problem: {
+            select: {
+              title: true,
+              problemType: true,
+              objectiveItems: true,
+            },
+          },
         },
         orderBy: [{ order: "asc" }, { id: "asc" }],
       },
@@ -43,12 +54,40 @@ export async function POST(request: NextRequest, context: RouteContext) {
       { status: 400 },
     );
   }
+  const mismatchedProblem = existingExam.problems.find(
+    (item) => item.problem.problemType !== existingExam.examType,
+  );
+  if (mismatchedProblem) {
+    return NextResponse.json(
+      {
+        error: `题目《${mismatchedProblem.problem.title}》与考试类型不一致`,
+      },
+      { status: 400 },
+    );
+  }
   const invalidProblem = existingExam.problems.find((item) => item.score <= 0);
   if (invalidProblem) {
     return NextResponse.json(
       { error: `题目《${invalidProblem.problem.title}》的分值必须大于 0` },
       { status: 400 },
     );
+  }
+  if (existingExam.examType === "objective") {
+    const invalidObjectiveProblem = existingExam.problems.find((item) => {
+      const objectiveItems = parseObjectiveItems(item.problem.objectiveItems);
+      return (
+        validateObjectiveItems(objectiveItems).length > 0 ||
+        item.score !== getObjectiveTotalScore(objectiveItems)
+      );
+    });
+    if (invalidObjectiveProblem) {
+      return NextResponse.json(
+        {
+          error: `客观题《${invalidObjectiveProblem.problem.title}》的小题分值配置无效`,
+        },
+        { status: 400 },
+      );
+    }
   }
 
   const exam = await prisma.exam.update({

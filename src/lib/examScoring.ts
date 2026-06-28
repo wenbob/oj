@@ -1,4 +1,9 @@
 import type { Prisma } from "@prisma/client";
+import {
+  getObjectiveSubmissionScore,
+  getObjectiveTotalScore,
+  parseObjectiveItems,
+} from "@/lib/objectiveProblem";
 import { prisma } from "@/lib/prisma";
 
 type DbClient = typeof prisma | Prisma.TransactionClient;
@@ -51,6 +56,8 @@ export async function calculateExamScore({
         select: {
           id: true,
           title: true,
+          problemType: true,
+          objectiveItems: true,
         },
       },
     },
@@ -69,8 +76,15 @@ export async function calculateExamScore({
         orderBy: { createdAt: "desc" },
         select: {
           createdAt: true,
+          id: true,
           problemId: true,
           status: true,
+          caseResults: {
+            select: {
+              caseIndex: true,
+              status: true,
+            },
+          },
         },
       })
     : [];
@@ -85,16 +99,35 @@ export async function calculateExamScore({
   const problemResults = examProblems.map((examProblem) => {
     const problemSubmissions =
       submissionsByProblem.get(examProblem.problemId) ?? [];
-    const accepted = problemSubmissions.some(
-      (submission) => submission.status === "Accepted",
-    );
-    const score = accepted ? examProblem.score : 0;
+    const isObjective = examProblem.problem.problemType === "objective";
+    const objectiveItems = isObjective
+      ? parseObjectiveItems(examProblem.problem.objectiveItems)
+      : [];
+    const maxScore = isObjective
+      ? getObjectiveTotalScore(objectiveItems)
+      : examProblem.score;
+    const objectiveScores = isObjective
+      ? problemSubmissions.map((submission) =>
+          getObjectiveSubmissionScore({
+            caseResults: submission.caseResults,
+            items: objectiveItems,
+          }),
+        )
+      : [];
+    const score = isObjective
+      ? Math.max(0, ...objectiveScores)
+      : problemSubmissions.some((submission) => submission.status === "Accepted")
+        ? examProblem.score
+        : 0;
+    const accepted =
+      problemSubmissions.some((submission) => submission.status === "Accepted") ||
+      (isObjective && maxScore > 0 && score === maxScore);
 
     return {
       problemId: examProblem.problemId,
       title: examProblem.problem.title,
       score,
-      maxScore: examProblem.score,
+      maxScore,
       bestStatus: accepted
         ? "Accepted"
         : problemSubmissions[0]?.status ?? "未提交",

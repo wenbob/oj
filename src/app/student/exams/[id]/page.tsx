@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronRight, Timer } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
+import { ProblemTypeBadge } from "@/components/ProblemTypeBadge";
 import { StartExamButton } from "@/components/StartExamButton";
 import { requirePageUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -40,6 +41,7 @@ export default async function StudentExamDetailPage({ params }: PageProps) {
               title: true,
               difficulty: true,
               category: true,
+              problemType: true,
             },
           },
         },
@@ -61,6 +63,9 @@ export default async function StudentExamDetailPage({ params }: PageProps) {
               Mock Exam
             </p>
             <h1 className="mt-2 text-3xl font-black">{exam.title}</h1>
+            <div className="mt-3">
+              <ProblemTypeBadge type={exam.examType} />
+            </div>
             <p className="mt-3 max-w-3xl whitespace-pre-wrap leading-7 text-ink-700">
               {exam.description || "暂无考试说明"}
             </p>
@@ -108,6 +113,9 @@ export default async function StudentExamDetailPage({ params }: PageProps) {
                 <p className="mt-1 text-sm font-semibold text-ink-600">
                   {item.problem.category || "未分类"} / {item.problem.difficulty}
                 </p>
+                <div className="mt-2">
+                  <ProblemTypeBadge type={item.problem.problemType} />
+                </div>
               </div>
               <div className="text-sm font-bold text-ink-700">
                 {item.score} 分

@@ -1,5 +1,9 @@
+import type { ObjectiveItem, ProblemType } from "./objectiveProblem";
+import { validateObjectiveItems } from "./objectiveProblem";
+
 export type ParsedProblemMarkdown = {
   title: string;
+  problemType: ProblemType;
   difficulty: string;
   category: string;
   description: string;
@@ -10,6 +14,7 @@ export type ParsedProblemMarkdown = {
     output: string;
   }[];
   dataRange: string;
+  objectiveItems?: ObjectiveItem[];
 };
 
 export type ParseProblemsOptions = {
@@ -72,6 +77,18 @@ function normalizeFenceContent(content: string) {
   return content.replace(/\n$/, "");
 }
 
+function findUnclosedFenceLine(markdown: string) {
+  const lines = normalizeMarkdown(markdown).split("\n");
+  let openLine: number | null = null;
+
+  lines.forEach((line, index) => {
+    if (!/^\s*```/.test(line)) return;
+    openLine = openLine === null ? index + 1 : null;
+  });
+
+  return openLine;
+}
+
 function parseSamples(sampleSection: string) {
   const blockPattern =
     /^###\s*(输入样例|输出样例)\s*(\d+)?\s*\n+[ \t]*```[^\n]*\n([\s\S]*?)^[ \t]*```[ \t]*$/gm;
@@ -111,6 +128,114 @@ function parseSamples(sampleSection: string) {
     input,
     output: outputs[index],
   }));
+}
+
+function normalizeProblemTypeLabel(value?: string): ProblemType {
+  const label = value?.trim();
+  if (label === "选择判断" || label === "客观题" || label === "选择题" || label === "判断题") {
+    return "objective";
+  }
+  return "programming";
+}
+
+function parseObjectiveItems(section: string) {
+  const normalized = normalizeMarkdown(section);
+  const lines = normalized.split("\n");
+  const blocks: string[] = [];
+  let current: string[] = [];
+  let inFence = false;
+
+  for (const line of lines) {
+    if (/^\s*```/.test(line)) {
+      inFence = !inFence;
+    }
+    if (!inFence && /^###\s+第\s*\d+\s*题/.test(line)) {
+      if (current.length > 0) blocks.push(current.join("\n").trim());
+      current = [line];
+      continue;
+    }
+    if (current.length > 0) current.push(line);
+  }
+  if (current.length > 0) blocks.push(current.join("\n").trim());
+
+  if (blocks.length === 0) {
+    throw new ProblemMarkdownError("缺少客观题小题");
+  }
+
+  return blocks.map((block, index) => parseObjectiveItem(block, index));
+}
+
+function parseObjectiveItem(block: string, index: number): ObjectiveItem {
+  const body = block.replace(/^###\s+第\s*\d+\s*题\s*/m, "").trim();
+  const answerMatch = body.match(/^答案[:：]\s*([A-Za-z])\s*$/m);
+  const scoreMatch = body.match(/^分值[:：]\s*(\d+)\s*$/m);
+  if (!answerMatch) {
+    throw new ProblemMarkdownError(`第 ${index + 1} 小题缺少答案`);
+  }
+  if (!scoreMatch) {
+    throw new ProblemMarkdownError(`第 ${index + 1} 小题缺少分值`);
+  }
+
+  const content = body
+    .replace(/^答案[:：].*$/m, "")
+    .replace(/^分值[:：].*$/m, "")
+    .trim();
+  const options: ObjectiveItem["options"] = [];
+  let firstOptionIndex = -1;
+  let offset = 0;
+  let inFence = false;
+
+  for (const line of content.split("\n")) {
+    if (/^\s*```/.test(line)) {
+      inFence = !inFence;
+      offset += line.length + 1;
+      continue;
+    }
+
+    if (!inFence) {
+      const emptyOptionMatch = line.match(/^([A-Da-d])[\.\、][ \t]*$/);
+      if (emptyOptionMatch) {
+        throw new ProblemMarkdownError(
+          `第 ${index + 1} 小题选项 ${emptyOptionMatch[1].toUpperCase()} 缺少内容，选项必须写成“${emptyOptionMatch[1].toUpperCase()}. 选项内容”`,
+        );
+      }
+
+      const optionMatch = line.match(/^([A-Da-d])[\.\、][ \t]*(.+)$/);
+      if (optionMatch) {
+        if (firstOptionIndex < 0) firstOptionIndex = offset;
+        options.push({
+          label: optionMatch[1].toUpperCase(),
+          text: optionMatch[2].trim(),
+        });
+      }
+    }
+
+    offset += line.length + 1;
+  }
+
+  if (inFence) {
+    throw new ProblemMarkdownError(`第 ${index + 1} 小题代码块未闭合`);
+  }
+
+  const stem =
+    firstOptionIndex >= 0 ? content.slice(0, firstOptionIndex).trim() : content;
+  const isJudge =
+    options.length === 2 &&
+    options.some((option) => option.text.includes("正确")) &&
+    options.some((option) => option.text.includes("错误"));
+
+  const item: ObjectiveItem = {
+    kind: isJudge ? "judge" : "choice",
+    stem,
+    options,
+    answer: answerMatch[1].toUpperCase(),
+    score: Number(scoreMatch[1]),
+  };
+  const errors = validateObjectiveItems([item]);
+  if (errors.length > 0) {
+    throw new ProblemMarkdownError(errors[0]);
+  }
+  return item;
 }
 
 function splitProblemBlocks(markdown: string) {
@@ -175,11 +300,40 @@ function parseSingleProblemBlock(
     throw new ProblemMarkdownError("缺少分类");
   }
 
+  const problemType = normalizeProblemTypeLabel(
+    cleanText(getOptionalSection(normalized, "题型")),
+  );
+
   const description = getRequiredSection(
     normalized,
     "题目描述",
     "缺少题目描述",
   );
+
+  if (problemType === "objective") {
+    const objectiveSection = getRequiredSection(
+      normalized,
+      "客观题",
+      "缺少客观题",
+    );
+    const objectiveItems = parseObjectiveItems(objectiveSection);
+    const dataRange =
+      cleanText(getOptionalSection(normalized, "数据范围")) ?? "选择判断题";
+
+    return {
+      title,
+      problemType,
+      difficulty,
+      category,
+      description,
+      inputDescription: "每行填写一题答案，例如 A",
+      outputDescription: "系统按每行答案判分。",
+      samples: [],
+      dataRange,
+      objectiveItems,
+    };
+  }
+
   const inputDescription = getRequiredSection(
     normalized,
     "输入格式",
@@ -196,6 +350,7 @@ function parseSingleProblemBlock(
 
   return {
     title,
+    problemType,
     difficulty,
     category,
     description,
@@ -211,6 +366,7 @@ export function parseProblemsMarkdown(
   options: ParseProblemsOptions = {},
 ): ParseProblemsResult {
   const blocks = splitProblemBlocks(markdown);
+  const unclosedFenceLine = findUnclosedFenceLine(markdown);
 
   if (blocks.length === 0) {
     return {
@@ -234,6 +390,12 @@ export function parseProblemsMarkdown(
           : "Markdown 解析失败";
       errors.push(`${formatProblemPrefix(index, title)}${message}`);
     }
+  }
+
+  if (unclosedFenceLine !== null) {
+    errors.push(
+      `Markdown 存在未闭合代码块：请检查第 ${unclosedFenceLine} 行附近或之前的 \`\`\` 标记是否成对`,
+    );
   }
 
   return { problems, errors };

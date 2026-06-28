@@ -19,7 +19,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
   const exam = await prisma.exam.findUnique({
     where: { id: examId },
-    select: { id: true },
+    select: { id: true, examType: true },
   });
   if (!exam) return NextResponse.json({ error: "考试不存在" }, { status: 404 });
 
@@ -41,5 +41,16 @@ export async function POST(request: NextRequest, context: RouteContext) {
     defaultCategory,
     defaultDifficulty,
   });
-  return NextResponse.json(result);
+  const typeErrors = result.problems
+    .filter((problem) => problem.problemType !== exam.examType)
+    .map(
+      (problem) =>
+        `题目《${problem.title}》的题型与当前${
+          exam.examType === "objective" ? "选择判断考试" : "编程考试"
+        }不一致`,
+    );
+  return NextResponse.json({
+    ...result,
+    errors: [...result.errors, ...typeErrors],
+  });
 }

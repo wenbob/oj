@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireApiUser } from "@/lib/auth";
+import {
+  getObjectiveTotalScore,
+  isProblemType,
+  parseObjectiveItems,
+  validateObjectiveItems,
+} from "@/lib/objectiveProblem";
 import { prisma } from "@/lib/prisma";
 
 type RouteContext = {
@@ -19,8 +25,10 @@ function readExamPayload(body: unknown) {
       ? null
       : Number(record.durationMin);
   const status = typeof record.status === "string" ? record.status : "draft";
+  const examType =
+    typeof record.examType === "string" ? record.examType : "programming";
 
-  return { title, description, durationMin, status };
+  return { title, description, durationMin, status, examType };
 }
 
 function validateExamPayload(payload: ReturnType<typeof readExamPayload>) {
@@ -34,6 +42,7 @@ function validateExamPayload(payload: ReturnType<typeof readExamPayload>) {
   if (!["draft", "published", "ended"].includes(payload.status)) {
     return "考试状态不合法";
   }
+  if (!isProblemType(payload.examType)) return "考试类型不合法";
   return null;
 }
 
@@ -58,6 +67,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
               title: true,
               difficulty: true,
               category: true,
+              problemType: true,
             },
           },
         },
@@ -83,12 +93,32 @@ export async function PUT(request: NextRequest, context: RouteContext) {
   const payload = readExamPayload(await request.json().catch(() => null));
   const error = validateExamPayload(payload);
   if (error) return NextResponse.json({ error }, { status: 400 });
+  const examProblems = await prisma.examProblem.findMany({
+    where: { examId },
+    include: {
+      problem: {
+        select: {
+          title: true,
+          problemType: true,
+          objectiveItems: true,
+        },
+      },
+    },
+    orderBy: [{ order: "asc" }, { id: "asc" }],
+  });
+  const mismatchedProblem = examProblems.find(
+    (item) => item.problem.problemType !== payload.examType,
+  );
+  if (mismatchedProblem) {
+    return NextResponse.json(
+      {
+        error: `题目《${mismatchedProblem.problem.title}》与当前考试类型不一致，请先移除该题`,
+      },
+      { status: 400 },
+    );
+  }
+
   if (payload.status === "published") {
-    const examProblems = await prisma.examProblem.findMany({
-      where: { examId },
-      include: { problem: { select: { title: true } } },
-      orderBy: [{ order: "asc" }, { id: "asc" }],
-    });
     if (examProblems.length === 0) {
       return NextResponse.json(
         { error: "考试至少需要添加 1 道题后才能发布" },
@@ -102,6 +132,25 @@ export async function PUT(request: NextRequest, context: RouteContext) {
         { status: 400 },
       );
     }
+    if (payload.examType === "objective") {
+      const invalidObjectiveProblem = examProblems.find((item) => {
+        const objectiveItems = parseObjectiveItems(
+          item.problem.objectiveItems,
+        );
+        return (
+          validateObjectiveItems(objectiveItems).length > 0 ||
+          item.score !== getObjectiveTotalScore(objectiveItems)
+        );
+      });
+      if (invalidObjectiveProblem) {
+        return NextResponse.json(
+          {
+            error: `客观题《${invalidObjectiveProblem.problem.title}》的小题分值配置无效`,
+          },
+          { status: 400 },
+        );
+      }
+    }
   }
 
   const exam = await prisma.exam.update({
@@ -111,6 +160,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       description: payload.description || null,
       durationMin: payload.durationMin,
       status: payload.status,
+      examType: payload.examType,
     },
   });
 

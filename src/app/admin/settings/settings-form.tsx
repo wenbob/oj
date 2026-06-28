@@ -1,7 +1,8 @@
 "use client";
 
 import { Save } from "lucide-react";
-import { FormEvent, useState } from "react";
+import type { FormEvent } from "react";
+import { useState } from "react";
 import type { SystemSettings } from "@/lib/settings";
 
 export function SettingsForm({ initialSettings }: { initialSettings: SystemSettings }) {

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
+import { ProblemTypeBadge } from "@/components/ProblemTypeBadge";
 import { StatusBadge } from "@/components/StatusBadge";
 import { requirePageUser } from "@/lib/auth";
 import { calculateExamScore, expireExamRecordIfNeeded } from "@/lib/examScoring";
@@ -34,6 +35,7 @@ export default async function StudentExamResultPage({ params }: PageProps) {
         description: true,
         durationMin: true,
         status: true,
+        examType: true,
       },
     }),
     expireExamRecordIfNeeded({ examId, userId: user.id }),
@@ -53,6 +55,9 @@ export default async function StudentExamResultPage({ params }: PageProps) {
               Exam Result
             </p>
             <h1 className="mt-2 text-3xl font-black">{exam.title}</h1>
+            <div className="mt-3">
+              <ProblemTypeBadge type={exam.examType} />
+            </div>
             <p className="mt-3 max-w-3xl whitespace-pre-wrap leading-7 text-ink-700">
               {exam.description || "暂无考试说明"}
             </p>

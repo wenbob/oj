@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireApiUser } from "@/lib/auth";
+import {
+  getObjectiveTotalScore,
+  parseObjectiveItems,
+} from "@/lib/objectiveProblem";
 import { normalizeProblemPayload } from "@/lib/problemPayload";
 import { prisma } from "@/lib/prisma";
 
@@ -25,8 +29,28 @@ export async function PUT(request: NextRequest, context: RouteContext) {
   try {
     const payload = normalizeProblemPayload(await request.json());
     const problem = await prisma.$transaction(async (tx) => {
+      const examLinks = await tx.examProblem.findMany({
+        where: { problemId },
+        include: {
+          exam: {
+            select: {
+              title: true,
+              examType: true,
+            },
+          },
+        },
+      });
+      const incompatibleExam = examLinks.find(
+        (link) => link.exam.examType !== payload.problemType,
+      );
+      if (incompatibleExam) {
+        throw new Error(
+          `题目已加入考试《${incompatibleExam.exam.title}》，请先从该考试移除后再修改题型`,
+        );
+      }
+
       await tx.testCase.deleteMany({ where: { problemId } });
-      return tx.problem.update({
+      const updatedProblem = await tx.problem.update({
         where: { id: problemId },
         data: {
           title: payload.title,
@@ -38,10 +62,26 @@ export async function PUT(request: NextRequest, context: RouteContext) {
           dataRange: payload.dataRange,
           difficulty: payload.difficulty,
           category: payload.category,
-          testCases: { create: payload.testCases },
+          problemType: payload.problemType,
+          objectiveItems: payload.objectiveItems ?? null,
+          testCases:
+            payload.problemType === "programming"
+              ? { create: payload.testCases }
+              : undefined,
         },
         include: { testCases: true },
       });
+      if (payload.problemType === "objective") {
+        await tx.examProblem.updateMany({
+          where: { problemId },
+          data: {
+            score: getObjectiveTotalScore(
+              parseObjectiveItems(payload.objectiveItems),
+            ),
+          },
+        });
+      }
+      return updatedProblem;
     });
 
     return NextResponse.json({ problem });

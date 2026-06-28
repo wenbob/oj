@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireApiUser } from "@/lib/auth";
+import {
+  getObjectiveTotalScore,
+  parseObjectiveItems,
+  validateObjectiveItems,
+} from "@/lib/objectiveProblem";
 import { prisma } from "@/lib/prisma";
 
 type RouteContext = {
@@ -38,10 +43,18 @@ export async function POST(request: NextRequest, context: RouteContext) {
   }
 
   const [exam, foundProblems, existingProblems] = await Promise.all([
-    prisma.exam.findUnique({ where: { id: examId }, select: { id: true } }),
+    prisma.exam.findUnique({
+      where: { id: examId },
+      select: { id: true, examType: true },
+    }),
     prisma.problem.findMany({
       where: { id: { in: problemIds } },
-      select: { id: true },
+      select: {
+        id: true,
+        title: true,
+        problemType: true,
+        objectiveItems: true,
+      },
     }),
     prisma.examProblem.findMany({
       where: { examId, problemId: { in: problemIds } },
@@ -52,6 +65,17 @@ export async function POST(request: NextRequest, context: RouteContext) {
   if (!exam) return NextResponse.json({ error: "考试不存在" }, { status: 404 });
   if (foundProblems.length !== problemIds.length) {
     return NextResponse.json({ error: "存在不存在的题目" }, { status: 404 });
+  }
+  const mismatchedProblem = foundProblems.find(
+    (problem) => problem.problemType !== exam.examType,
+  );
+  if (mismatchedProblem) {
+    return NextResponse.json(
+      {
+        error: `题目《${mismatchedProblem.title}》与当前考试类型不一致`,
+      },
+      { status: 400 },
+    );
   }
   if (existingProblems.length > 0) {
     return NextResponse.json({ error: "选中的题目中有题目已经在考试中" }, { status: 409 });
@@ -65,14 +89,36 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }))._max.order ?? 0) + 1;
 
   try {
+    const foundProblemMap = new Map(
+      foundProblems.map((problem) => [problem.id, problem]),
+    );
     const examProblems = await prisma.$transaction((tx) =>
       Promise.all(
-        problemIds.map((problemId, index) =>
-          tx.examProblem.create({
+        problemIds.map((problemId, index) => {
+          const problem = foundProblemMap.get(problemId);
+          if (!problem) throw new Error("题目不存在");
+          const objectiveItems =
+            problem.problemType === "objective"
+              ? parseObjectiveItems(problem.objectiveItems)
+              : [];
+          const objectiveErrors =
+            problem.problemType === "objective"
+              ? validateObjectiveItems(objectiveItems)
+              : [];
+          if (objectiveErrors.length > 0) {
+            throw new Error(
+              `题目《${problem.title}》配置无效：${objectiveErrors[0]}`,
+            );
+          }
+
+          return tx.examProblem.create({
             data: {
               examId,
               problemId,
-              score,
+              score:
+                problem.problemType === "objective"
+                  ? getObjectiveTotalScore(objectiveItems)
+                  : score,
               order: nextOrder + index,
             },
             include: {
@@ -82,11 +128,12 @@ export async function POST(request: NextRequest, context: RouteContext) {
                   title: true,
                   difficulty: true,
                   category: true,
+                  problemType: true,
                 },
               },
             },
-          }),
-        ),
+          });
+        }),
       ),
     );
 
@@ -95,7 +142,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     return NextResponse.json({ examProblem: examProblems[0] }, { status: 201 });
-  } catch {
-    return NextResponse.json({ error: "添加题目失败" }, { status: 409 });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "添加题目失败" },
+      { status: 409 },
+    );
   }
 }

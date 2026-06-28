@@ -6,6 +6,9 @@ import {
   createImportedProblems,
   validateParsedProblems,
 } from "@/lib/problemImport";
+import {
+  getObjectiveTotalScore,
+} from "@/lib/objectiveProblem";
 import { prisma } from "@/lib/prisma";
 
 type RouteContext = {
@@ -60,9 +63,25 @@ export async function POST(request: NextRequest, context: RouteContext) {
       typeof body === "object" && body ? (body as Record<string, unknown>) : {};
     const defaults = readDefaults(record);
     const parsed = readProblemPayload(body, defaults);
+    const exam = await prisma.exam.findUnique({
+      where: { id: examId },
+      select: { id: true, examType: true },
+    });
+    if (!exam) {
+      return NextResponse.json({ error: "考试不存在" }, { status: 404 });
+    }
+    const typeErrors = parsed.problems
+      .filter((problem) => problem.problemType !== exam.examType)
+      .map(
+        (problem) =>
+          `题目《${problem.title}》的题型与当前${
+            exam.examType === "objective" ? "选择判断考试" : "编程考试"
+          }不一致`,
+      );
     const errors = [
       ...parsed.errors,
       ...validateParsedProblems(parsed.problems, defaults),
+      ...typeErrors,
     ];
 
     if (errors.length > 0) {
@@ -70,12 +89,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     const result = await prisma.$transaction(async (tx) => {
-      const exam = await tx.exam.findUnique({
-        where: { id: examId },
-        select: { id: true },
-      });
-      if (!exam) throw new Error("考试不存在");
-
       const problemIds = await createImportedProblems(tx, parsed.problems, defaults);
       const maxOrder = await tx.examProblem.aggregate({
         where: { examId },
@@ -83,13 +96,18 @@ export async function POST(request: NextRequest, context: RouteContext) {
       });
       let nextOrder = (maxOrder._max.order ?? 0) + 1;
 
-      for (const problemId of problemIds) {
+      for (const [index, problemId] of problemIds.entries()) {
+        const parsedProblem = parsed.problems[index];
+        const objectiveScore =
+          parsedProblem?.problemType === "objective"
+            ? getObjectiveTotalScore(parsedProblem.objectiveItems ?? [])
+            : 100;
         await tx.examProblem.create({
           data: {
             examId,
             problemId,
             order: nextOrder,
-            score: 100,
+            score: objectiveScore,
           },
         });
         nextOrder += 1;

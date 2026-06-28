@@ -15,6 +15,7 @@ export async function GET(request: NextRequest) {
       description: true,
       durationMin: true,
       status: true,
+      examType: true,
       createdAt: true,
       _count: { select: { problems: true } },
     },

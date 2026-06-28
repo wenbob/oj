@@ -28,11 +28,15 @@ model Problem {
   dataRange         String?
   difficulty        String
   category          String
+  problemType       String        @default("programming")
+  objectiveItems    String?
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
   testCases         TestCase[]
   submissions       Submission[]
   examProblems      ExamProblem[]
+
+  @@index([problemType, category])
 }
 
 model TestCase {
@@ -93,11 +97,14 @@ model Exam {
   description String?
   durationMin Int?
   status      String        @default("draft")
+  examType    String        @default("programming")
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
   problems    ExamProblem[]
   submissions Submission[]
   records     ExamRecord[]
+
+  @@index([examType, status])
 }
 
 model ExamRecord {

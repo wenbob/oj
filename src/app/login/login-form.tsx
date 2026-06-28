@@ -2,7 +2,8 @@
 
 import { LogIn } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
+import type { FormEvent } from "react";
+import { useState } from "react";
 
 export function LoginForm() {
   const router = useRouter();

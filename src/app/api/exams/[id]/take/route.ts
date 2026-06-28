@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireApiUser } from "@/lib/auth";
 import { expireExamRecordIfNeeded } from "@/lib/examScoring";
+import {
+  getPublicObjectiveItems,
+  parseObjectiveItems,
+} from "@/lib/objectiveProblem";
 import { prisma } from "@/lib/prisma";
 
 type RouteContext = {
@@ -19,14 +23,42 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
   const exam = await prisma.exam.findUnique({
     where: { id: examId },
-    include: {
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      durationMin: true,
+      status: true,
+      examType: true,
       problems: {
-        include: {
+        select: {
+          id: true,
+          problemId: true,
+          order: true,
+          score: true,
           problem: {
-            include: {
+            select: {
+              id: true,
+              title: true,
+              description: true,
+              inputDescription: true,
+              outputDescription: true,
+              sampleInput: true,
+              sampleOutput: true,
+              dataRange: true,
+              difficulty: true,
+              category: true,
+              problemType: true,
+              objectiveItems: true,
               testCases: {
                 where: { isSample: true },
                 orderBy: { id: "asc" },
+                select: {
+                  id: true,
+                  input: true,
+                  output: true,
+                  isSample: true,
+                },
               },
             },
           },
@@ -80,5 +112,21 @@ export async function GET(request: NextRequest, context: RouteContext) {
     },
   });
 
-  return NextResponse.json({ exam, submissions });
+  const publicExam = {
+    ...exam,
+    problems: exam.problems.map((examProblem) => ({
+      ...examProblem,
+      problem: {
+        ...examProblem.problem,
+        objectiveItems:
+          examProblem.problem.problemType === "objective"
+            ? getPublicObjectiveItems(
+                parseObjectiveItems(examProblem.problem.objectiveItems),
+              )
+            : [],
+      },
+    })),
+  };
+
+  return NextResponse.json({ exam: publicExam, submissions });
 }

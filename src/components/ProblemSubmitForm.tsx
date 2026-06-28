@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
@@ -7,6 +8,7 @@ import { SendHorizontal } from "lucide-react";
 import { useEffect, useState } from "react";
 import { StatusBadge } from "@/components/StatusBadge";
 import { formatRuntime } from "@/lib/format";
+import type { ProblemType } from "@/lib/objectiveProblem";
 
 const CodeEditor = dynamic(() => import("@/components/CodeEditor"), {
   ssr: false,
@@ -48,6 +50,7 @@ export function ProblemSubmitForm({
   examId,
   examEndsAt,
   fromSubmissionId,
+  problemType = "programming",
   problemId,
   refreshOnSuccess = false,
 }: {
@@ -59,17 +62,20 @@ export function ProblemSubmitForm({
   examId?: number;
   examEndsAt?: string | null;
   fromSubmissionId?: number;
+  problemType?: ProblemType;
   problemId: number;
   refreshOnSuccess?: boolean;
 }) {
   const router = useRouter();
+  const objective = problemType === "objective";
   const storageKey =
     draftStorageKey ??
     (examId
       ? `oj-code-exam-${examId}-problem-${problemId}`
       : `oj-code-problem-${problemId}`);
-  const initialCode =
-    defaultCodeTemplate && defaultCodeTemplate.trim()
+  const initialCode = objective
+    ? ""
+    : defaultCodeTemplate && defaultCodeTemplate.trim()
       ? defaultCodeTemplate
       : fallbackCppTemplate;
   const [code, setCode] = useState(initialCode);
@@ -80,22 +86,27 @@ export function ProblemSubmitForm({
   const [result, setResult] = useState<SubmissionResult | null>(null);
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
+  const [showObjectiveExamConfirm, setShowObjectiveExamConfirm] =
+    useState(false);
   const [showAcceptedPopup, setShowAcceptedPopup] = useState(false);
   const [timeExpired, setTimeExpired] = useState(false);
+  const shouldFinishExamAfterObjectiveSubmit =
+    objective && examId !== undefined;
 
   useEffect(() => {
     let cancelled = false;
-    setDraftLoaded(false);
-    setLoadedStorageKey(null);
-    setLoadMessage("");
-    setLoadError("");
-    setResult(null);
-    setError("");
-    setShowAcceptedPopup(false);
-    setCode(initialCode);
 
     const frame = window.requestAnimationFrame(async () => {
       if (cancelled) return;
+      setDraftLoaded(false);
+      setLoadedStorageKey(null);
+      setLoadMessage("");
+      setLoadError("");
+      setResult(null);
+      setError("");
+      setShowObjectiveExamConfirm(false);
+      setShowAcceptedPopup(false);
+      setCode(initialCode);
 
       if (fromSubmissionId) {
         try {
@@ -177,6 +188,17 @@ export function ProblemSubmitForm({
   }, [showAcceptedPopup]);
 
   async function submit() {
+    if (shouldFinishExamAfterObjectiveSubmit && !showObjectiveExamConfirm) {
+      setError("");
+      setResult(null);
+      setShowObjectiveExamConfirm(true);
+      return;
+    }
+
+    await submitAnswer({ finishExam: shouldFinishExamAfterObjectiveSubmit });
+  }
+
+  async function submitAnswer({ finishExam }: { finishExam: boolean }) {
     if (disabled || timeExpired) {
       setError(disabledMessage ?? "考试已结束，不能继续提交");
       return;
@@ -185,6 +207,7 @@ export function ProblemSubmitForm({
     setPending(true);
     setError("");
     setResult(null);
+    setShowObjectiveExamConfirm(false);
     setShowAcceptedPopup(false);
 
     const response = await fetch(`/api/problems/${problemId}/submit`, {
@@ -193,12 +216,32 @@ export function ProblemSubmitForm({
       body: JSON.stringify({ code, examId }),
     });
     const data = await response.json();
-    setPending(false);
 
     if (!response.ok) {
+      setPending(false);
       setError(data.error ?? "提交失败");
       return;
     }
+
+    if (finishExam && examId !== undefined) {
+      const examResponse = await fetch(`/api/exams/${examId}/submit`, {
+        method: "POST",
+      });
+      const examData = await examResponse.json().catch(() => ({}));
+
+      if (!examResponse.ok) {
+        setPending(false);
+        setResult(data.submission);
+        setError(examData.error ?? "答案已提交，但交卷失败，请重试交卷");
+        return;
+      }
+
+      router.push(examData.resultHref ?? `/student/exams/${examId}/result`);
+      router.refresh();
+      return;
+    }
+
+    setPending(false);
     setResult(data.submission);
     if (data.submission?.status === "Accepted") {
       setShowAcceptedPopup(true);
@@ -217,16 +260,25 @@ export function ProblemSubmitForm({
   return (
     <section className="surface p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-lg font-black">C++17 代码</h2>
+        <div>
+          <h2 className="text-lg font-black">
+            {objective ? "答案输入" : "C++17 代码"}
+          </h2>
+          {objective ? (
+            <p className="mt-1 text-xs font-semibold text-ink-600">
+              每行对应一道小题，只填写一个选项字母，例如 A。
+            </p>
+          ) : null}
+        </div>
         <span className="border border-ink-950/10 bg-white/65 px-2.5 py-1 text-xs font-bold text-ink-700">
-          语言：C++17
+          {objective ? "格式：每行一个答案" : "语言：C++17"}
         </span>
       </div>
       <div className="mt-4">
         <CodeEditor
           key={storageKey}
-          height="460px"
-          language="cpp"
+          height={objective ? "360px" : "460px"}
+          language={objective ? "plaintext" : "cpp"}
           value={code}
           onChange={setCode}
         />
@@ -248,8 +300,39 @@ export function ProblemSubmitForm({
         type="button"
       >
         <SendHorizontal size={16} />
-        {pending ? "评测中" : "提交代码"}
+        {pending ? "提交中" : objective ? "提交答案" : "提交代码"}
       </button>
+      {showObjectiveExamConfirm ? (
+        <div
+          aria-label="确认提交答案并交卷"
+          className="mt-4 border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900"
+          role="dialog"
+        >
+          <h3 className="font-black">确认交卷？</h3>
+          <p className="mt-2 font-semibold leading-6">
+            本次操作会先提交当前答案，然后结束这场选择判断考试。交卷后不能继续修改答案。
+          </p>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+            <button
+              className="btn btn-primary w-full"
+              disabled={pending || disabled || timeExpired}
+              onClick={() => submitAnswer({ finishExam: true })}
+              type="button"
+            >
+              <SendHorizontal size={16} />
+              提交答案
+            </button>
+            <button
+              className="btn btn-secondary w-full"
+              disabled={pending}
+              onClick={() => setShowObjectiveExamConfirm(false)}
+              type="button"
+            >
+              继续作答
+            </button>
+          </div>
+        </div>
+      ) : null}
       {error ? (
         <p className="mt-3 border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">
           {error}
@@ -261,36 +344,40 @@ export function ProblemSubmitForm({
         </p>
       ) : null}
       {result ? (
-        <div className="mt-4 grid gap-2 border border-ink-950/10 bg-white/70 p-4 text-sm font-semibold text-ink-700">
-          <StatusBadge status={result.status} />
-          <span>
-            {result.passedCount}/{result.totalCount} 测试点
-          </span>
-          <span>{formatRuntime(result.runtimeMs)}</span>
-          {hasActualOutput ? (
-            <div className="mt-2 grid gap-1">
-              <span className="text-xs font-black text-ink-600">
-                程序输出（测试点 {outputCase.caseIndex}）
-              </span>
-              <pre className="max-h-44 overflow-auto border border-ink-950/10 bg-stone-50 p-3 text-xs font-mono font-semibold whitespace-pre-wrap text-ink-800">
-                {outputCase.actualOutput?.length
-                  ? outputCase.actualOutput
-                  : "（无输出）"}
+        objective ? (
+          <div className="mt-4 border border-ink-950/10 bg-white/70 p-4 text-base font-black text-ink-900">
+            答对 {result.passedCount}/{result.totalCount} 小题
+          </div>
+        ) : (
+          <div className="mt-4 grid gap-2 border border-ink-950/10 bg-white/70 p-4 text-sm font-semibold text-ink-700">
+            <StatusBadge status={result.status} />
+            <span>{result.passedCount}/{result.totalCount} 测试点</span>
+            <span>{formatRuntime(result.runtimeMs)}</span>
+            {hasActualOutput ? (
+              <div className="mt-2 grid gap-1">
+                <span className="text-xs font-black text-ink-600">
+                  {`程序输出（测试点 ${outputCase.caseIndex}）`}
+                </span>
+                <pre className="max-h-44 overflow-auto border border-ink-950/10 bg-stone-50 p-3 text-xs font-mono font-semibold whitespace-pre-wrap text-ink-800">
+                  {outputCase.actualOutput?.length
+                    ? outputCase.actualOutput
+                    : "（无输出）"}
+                </pre>
+              </div>
+            ) : null}
+            {result.errorMessage ? (
+              <pre className="mt-2 max-h-44 overflow-auto border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
+                {result.errorMessage}
               </pre>
-            </div>
-          ) : null}
-          {result.errorMessage ? (
-            <pre className="mt-2 max-h-44 overflow-auto border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
-              {result.errorMessage}
-            </pre>
-          ) : null}
-          <Link
-            className="btn btn-secondary mt-2 w-full"
-            href={`${detailHrefBase}/${result.id}`}
-          >
-            查看详情
-          </Link>
-        </div>
+            ) : null}
+            <Link
+              className="btn btn-secondary mt-2 w-full"
+              href={`${detailHrefBase}/${result.id}`}
+            >
+              查看详情
+            </Link>
+          </div>
+        )
       ) : null}
       {showAcceptedPopup ? (
         <div
@@ -311,10 +398,12 @@ export function ProblemSubmitForm({
             >
               关闭
             </button>
-            <img
+            <Image
               alt="你通过了此题，恭喜"
               className="max-h-[86vh] max-w-[86vw] object-contain"
+              height={1254}
               src="/ac-success.png"
+              width={1254}
             />
           </div>
         </div>

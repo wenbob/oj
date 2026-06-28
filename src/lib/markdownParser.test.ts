@@ -108,11 +108,55 @@ odd
 1 <= n <= 100000
 `;
 
+const objectiveMarkdown = `# GESP 选择判断练习
+
+## 题型
+
+选择判断
+
+## 难度
+
+入门
+
+## 分类
+
+GESP 一级
+
+## 题目描述
+
+请按顺序作答。
+
+## 客观题
+
+### 第 1 题
+
+下列不可做变量名的是（ ）。
+
+A. five-Star
+B. five_star
+C. fiveStar
+D. _fiveStar
+
+答案：A
+分值：2
+
+### 第 2 题
+
+break 可以终止当前循环。（ ）
+
+A. 正确
+B. 错误
+
+答案：A
+分值：3
+`;
+
 describe("parseProblemMarkdown", () => {
   it("单题 Markdown 中包含难度和分类，可以正确解析", () => {
     const parsed = parseProblemMarkdown(validMarkdown);
 
     expect(parsed.title).toBe("A+B 问题");
+    expect(parsed.problemType).toBe("programming");
     expect(parsed.difficulty).toBe("入门");
     expect(parsed.category).toBe("基础语法");
     expect(parsed.description).toContain("两个整数");
@@ -207,6 +251,50 @@ describe("parseProblemMarkdown", () => {
       "至少需要两组样例，当前只有 1 组",
     );
   });
+
+  it("选择判断 Markdown 可以解析小题、选项、答案和分值", () => {
+    const parsed = parseProblemMarkdown(objectiveMarkdown);
+
+    expect(parsed.problemType).toBe("objective");
+    expect(parsed.samples).toEqual([]);
+    expect(parsed.objectiveItems).toHaveLength(2);
+    expect(parsed.objectiveItems?.[0]).toMatchObject({
+      kind: "choice",
+      answer: "A",
+      score: 2,
+    });
+    expect(parsed.objectiveItems?.[1]).toMatchObject({
+      kind: "judge",
+      answer: "A",
+      score: 3,
+    });
+  });
+
+  it("选择判断题缺少答案时返回明确错误", () => {
+    expect(() =>
+      parseProblemMarkdown(objectiveMarkdown.replace("答案：A", "")),
+    ).toThrow("第 1 小题缺少答案");
+  });
+
+  it("选择判断题分值必须是正整数", () => {
+    expect(() =>
+      parseProblemMarkdown(objectiveMarkdown.replace("分值：2", "分值：1.5")),
+    ).toThrow("第 1 小题缺少分值");
+  });
+
+  it("选择判断题选项不能只写字母后另起代码块", () => {
+    const markdown = objectiveMarkdown.replace(
+      "A. five-Star",
+      `A.
+\`\`\`cpp
+int main() { return 0; }
+\`\`\``,
+    );
+
+    expect(() => parseProblemMarkdown(markdown)).toThrow(
+      "第 1 小题选项 A 缺少内容",
+    );
+  });
 });
 
 describe("parseProblemsMarkdown", () => {
@@ -291,6 +379,30 @@ describe("parseProblemsMarkdown", () => {
 
     expect(result.problems).toEqual([]);
     expect(result.errors).toContain("缺少试题名称");
+  });
+
+  it("文件中存在未闭合代码块时返回行号错误", () => {
+    const result = parseProblemsMarkdown(`# 坏题
+
+## 难度
+
+入门
+
+## 分类
+
+基础语法
+
+## 题目描述
+
+\`\`\`cpp
+int main() {
+  return 0;
+}
+`);
+
+    expect(result.errors).toContain(
+      "Markdown 存在未闭合代码块：请检查第 13 行附近或之前的 ``` 标记是否成对",
+    );
   });
 });
 

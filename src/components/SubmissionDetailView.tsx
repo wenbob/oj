@@ -52,6 +52,7 @@ export function SubmissionDetailView({
   showCopyCode?: boolean;
 }) {
   const isExamSubmission = submission.submissionType === "exam";
+  const objective = submission.language === "Objective";
 
   return (
     <div className="grid gap-6">
@@ -87,7 +88,7 @@ export function SubmissionDetailView({
           <InfoItem label="代码语言" value={submission.language} />
           <InfoItem label="提交时间" value={formatDate(submission.createdAt)} />
           <InfoItem
-            label="通过测试点"
+            label={objective ? "答对小题" : "通过测试点"}
             value={`${submission.passedCount} / ${submission.totalCount}`}
           />
           <InfoItem label="运行时间" value={formatRuntime(submission.runtimeMs)} />
@@ -105,7 +106,9 @@ export function SubmissionDetailView({
         <div className="flex flex-col gap-3 border-b border-ink-950/10 p-5 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-2">
             <Code2 size={18} className="text-steel" />
-            <h2 className="text-xl font-black">提交代码</h2>
+            <h2 className="text-xl font-black">
+              {objective ? "提交答案" : "提交代码"}
+            </h2>
           </div>
           {showCopyCode ? (
             <SubmissionCodeActions
@@ -122,7 +125,9 @@ export function SubmissionDetailView({
       <section className="surface p-5">
         <div className="flex items-center gap-2">
           <FileText size={18} className="text-steel" />
-          <h2 className="text-xl font-black">测试点结果</h2>
+          <h2 className="text-xl font-black">
+            {objective ? "逐题结果" : "测试点结果"}
+          </h2>
         </div>
 
         {submission.caseResults.length > 0 ? (
@@ -142,12 +147,18 @@ export function SubmissionDetailView({
                   </span>
                 </summary>
                 <div className="grid gap-4 border-t border-ink-950/10 p-4 xl:grid-cols-3">
-                  <CaseBlock title="输入" value={caseResult.input} />
                   <CaseBlock
-                    title="你的输出"
+                    title={objective ? "题目" : "输入"}
+                    value={caseResult.input}
+                  />
+                  <CaseBlock
+                    title={objective ? "你的答案" : "你的输出"}
                     value={caseResult.actualOutput ?? "（无输出）"}
                   />
-                  <CaseBlock title="标准输出" value={caseResult.expectedOutput} />
+                  <CaseBlock
+                    title={objective ? "标准答案" : "标准输出"}
+                    value={caseResult.expectedOutput}
+                  />
                   {caseResult.errorMessage ? (
                     <div className="xl:col-span-3">
                       <CaseBlock title="错误信息" value={caseResult.errorMessage} tone="error" />

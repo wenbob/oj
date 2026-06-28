@@ -3,6 +3,10 @@
 import { Copy } from "lucide-react";
 import { useState } from "react";
 import { copyToClipboard } from "@/lib/copyToClipboard";
+import type {
+  ProblemType,
+  PublicObjectiveItem,
+} from "@/lib/objectiveProblem";
 
 type ProblemSample = {
   input: string;
@@ -18,6 +22,8 @@ type CopyProblemButtonProps = {
   outputDescription: string;
   samples: ProblemSample[];
   dataRange?: string | null;
+  problemType?: ProblemType;
+  objectiveItems?: PublicObjectiveItem[];
 };
 
 export function CopyProblemButton({
@@ -29,6 +35,8 @@ export function CopyProblemButton({
   outputDescription,
   samples,
   dataRange,
+  problemType = "programming",
+  objectiveItems = [],
 }: CopyProblemButtonProps) {
   const [status, setStatus] = useState<"idle" | "copied" | "error">("idle");
 
@@ -44,6 +52,8 @@ export function CopyProblemButton({
           outputDescription,
           samples,
           dataRange,
+          problemType,
+          objectiveItems,
         }),
       );
       setStatus("copied");
@@ -78,7 +88,45 @@ function formatProblemMarkdown({
   outputDescription,
   samples,
   dataRange,
+  problemType = "programming",
+  objectiveItems = [],
 }: CopyProblemButtonProps) {
+  if (problemType === "objective") {
+    const objectiveBlocks = objectiveItems
+      .map(
+        (item, index) => `### 第 ${index + 1} 题
+
+${item.stem}
+
+${item.options.map((option) => `${option.label}. ${option.text}`).join("\n")}
+
+分值：${item.score}`,
+      )
+      .join("\n\n");
+
+    return `# ${title}
+
+## 题型
+
+选择判断
+
+## 难度
+
+${difficulty?.trim() || "未设置"}
+
+## 分类
+
+${category?.trim() || "未分类"}
+
+## 题目描述
+
+${description}
+
+## 客观题
+
+${objectiveBlocks || "暂无小题"}`;
+  }
+
   const sampleBlocks = samples
     .map(
       (sample, index) => `### 输入样例 ${index + 1}

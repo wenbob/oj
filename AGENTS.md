@@ -36,6 +36,23 @@ Generating static pages using 1 worker
 ## 编辑器策略
 
 - `src/components/CodeEditor.tsx` 是全站共用 Monaco 编辑器。自动代码提示、单词建议、Tab 补全、参数提示和内联建议默认关闭；不要在未明确要求时重新开启。
+- 编辑器字号调节也集中在 `src/components/CodeEditor.tsx`，会写入浏览器 `localStorage`，不要为单个页面重复实现。
+
+## 提交反馈策略
+
+- AC 透明动效弹窗集中在 `src/components/ProblemSubmitForm.tsx` 和 `public/ac-success.png`。图片必须保持真实 alpha 透明背景，不要替换成带棋盘格像素的伪透明图。
+
+## 题型与考试规则
+
+- `Problem.problemType` 和 `Exam.examType` 只允许 `programming`、`objective`。
+- 一场考试只能包含与 `Exam.examType` 相同的题目，题目搜索、Markdown 导入、添加题目和发布接口都必须校验。
+- 客观题标准答案保存在 `Problem.objectiveItems`，学生题目接口和考试答题接口不得返回 `answer` 字段。
+- 管理员题目练习页和管理员考试练习页用于校题，可以展示客观题标准答案；学生端不得展示。
+- 客观题提交不进入 Docker Judge；每行对应一道小题，逐题结果写入 `SubmissionCaseResult`，考试分数取单次提交的最高小题分值合计。
+- 客观题小题分值必须是正整数，`ExamProblem.score` 使用小题分值总和。
+- 客观题 Markdown 导入选项必须是单行 `A. 选项内容`；题干可用代码块，选项内代码或输出用行内代码，不要支持或生成 `A.` 后接代码块的格式。
+- 单大题选择判断考试和管理员考试练习页隐藏左侧“考试题目”导航以扩大题面；同场多题时必须保留导航。
+- 选择判断考试通过“提交答案”二次确认后交卷，提示文案不要写死“右侧”，避免布局变化后失真。
 
 ## 本地质量检查
 
@@ -45,8 +62,6 @@ npx tsc --noEmit
 npm run lint
 npm run build
 ```
-
-当前仓库存在一个历史 lint 问题：`src/components/ProblemSubmitForm.tsx` 中 React Hooks 规则会拒绝 effect 内同步 `setState`。不要把它误判为无关页面改动引入的新回归。
 
 ## 深入文档
 
@@ -59,3 +74,4 @@ npm run build
 | `docs/ops-review-2026-05-29.md` | 低内存构建事故和后续发布记录 |
 | `docs/ops-review-2026-05-31.md` | 学生复制题面和管理员考试练习模式发布记录 |
 | `docs/ops-review-2026-06-07.md` | Monaco 代码提示关闭发布记录 |
+| `docs/ops-review-2026-06-13.md` | 编辑器字号调节和 AC 透明弹窗发布记录 |

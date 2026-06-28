@@ -1,11 +1,18 @@
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { CopyProblemButton } from "@/components/CopyProblemButton";
+import { ObjectiveProblemContent } from "@/components/ObjectiveProblemContent";
 import { ProblemSamples } from "@/components/ProblemSamples";
 import { StatusBadge } from "@/components/StatusBadge";
+import { ProblemTypeBadge } from "@/components/ProblemTypeBadge";
 import { requirePageUser } from "@/lib/auth";
 import { formatDate, formatRuntime } from "@/lib/format";
 import { getDisplaySamples } from "@/lib/problemSamples";
+import {
+  getPublicObjectiveItems,
+  normalizeProblemType,
+  parseObjectiveItems,
+} from "@/lib/objectiveProblem";
 import { prisma } from "@/lib/prisma";
 import { getDefaultCppTemplate } from "@/lib/settings";
 import { SubmitForm } from "./submit-form";
@@ -57,6 +64,11 @@ export default async function StudentProblemDetailPage({
   ]);
 
   if (!problem) notFound();
+  const problemType = normalizeProblemType(problem.problemType);
+  const objectiveItems =
+    problemType === "objective"
+      ? getPublicObjectiveItems(parseObjectiveItems(problem.objectiveItems))
+      : [];
   const samples = getDisplaySamples({
     sampleInput: problem.sampleInput,
     sampleOutput: problem.sampleOutput,
@@ -79,6 +91,7 @@ export default async function StudentProblemDetailPage({
             <span className="border border-ink-950/10 bg-white/65 px-2.5 py-1 text-xs font-bold text-ink-700">
               {problem.category}
             </span>
+            <ProblemTypeBadge type={problemType} />
             <CopyProblemButton
               category={problem.category}
               dataRange={problem.dataRange}
@@ -88,31 +101,47 @@ export default async function StudentProblemDetailPage({
               outputDescription={problem.outputDescription}
               samples={samples}
               title={problem.title}
+              problemType={problemType}
+              objectiveItems={objectiveItems}
             />
           </div>
           <ProblemSection title="题目描述" value={problem.description} />
-          <ProblemSection title="输入格式" value={problem.inputDescription} />
-          <ProblemSection title="输出格式" value={problem.outputDescription} />
-          <ProblemSamples samples={samples} />
-          <ProblemSection title="数据范围" value={problem.dataRange || "暂无"} />
+          {problemType === "objective" ? (
+            <ObjectiveProblemContent items={objectiveItems} />
+          ) : (
+            <>
+              <ProblemSection title="输入格式" value={problem.inputDescription} />
+              <ProblemSection title="输出格式" value={problem.outputDescription} />
+              <ProblemSamples samples={samples} />
+              <ProblemSection title="数据范围" value={problem.dataRange || "暂无"} />
+            </>
+          )}
         </article>
 
-        <aside className="grid content-start gap-4">
+        <aside className="grid content-start gap-4 xl:sticky xl:top-6 xl:self-start">
           {latestSubmission ? (
             <section className="surface p-5">
               <h2 className="text-lg font-black">最近一次提交</h2>
               <div className="mt-3 grid gap-2 text-sm font-semibold text-ink-700">
-                <StatusBadge status={latestSubmission.status} />
-                <span>
-                  {latestSubmission.passedCount}/{latestSubmission.totalCount} 测试点
-                </span>
-                <span>{formatRuntime(latestSubmission.runtimeMs)}</span>
-                <span>{formatDate(latestSubmission.createdAt)}</span>
-                {latestSubmission.errorMessage ? (
-                  <pre className="mt-2 max-h-44 overflow-auto border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
-                    {latestSubmission.errorMessage}
-                  </pre>
-                ) : null}
+                {problemType === "objective" ? (
+                  <span>
+                    答对 {latestSubmission.passedCount}/{latestSubmission.totalCount} 小题
+                  </span>
+                ) : (
+                  <>
+                    <StatusBadge status={latestSubmission.status} />
+                    <span>
+                      {latestSubmission.passedCount}/{latestSubmission.totalCount} 测试点
+                    </span>
+                    <span>{formatRuntime(latestSubmission.runtimeMs)}</span>
+                    <span>{formatDate(latestSubmission.createdAt)}</span>
+                    {latestSubmission.errorMessage ? (
+                      <pre className="mt-2 max-h-44 overflow-auto border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
+                        {latestSubmission.errorMessage}
+                      </pre>
+                    ) : null}
+                  </>
+                )}
               </div>
             </section>
           ) : null}
@@ -121,6 +150,7 @@ export default async function StudentProblemDetailPage({
             fromSubmissionId={
               Number.isInteger(fromSubmissionId) ? fromSubmissionId : undefined
             }
+            problemType={problemType}
             problemId={problem.id}
           />
         </aside>

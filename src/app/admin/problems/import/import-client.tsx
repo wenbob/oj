@@ -3,9 +3,15 @@
 import { Check, FileUp, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { ChangeEvent, useState } from "react";
+import type {
+  ObjectiveItem,
+  ProblemType,
+} from "@/lib/objectiveProblem";
+import { objectiveProblemMarkdownTemplate } from "@/lib/markdownTemplates";
 
 type ParsedProblem = {
   title: string;
+  problemType: ProblemType;
   difficulty: string;
   category: string;
   description: string;
@@ -13,6 +19,7 @@ type ParsedProblem = {
   outputDescription: string;
   samples: { input: string; output: string }[];
   dataRange: string;
+  objectiveItems?: ObjectiveItem[];
 };
 
 const template = `# A+B 问题
@@ -176,7 +183,9 @@ export function ImportClient() {
       return;
     }
 
-    router.push("/admin/problems");
+    router.push(
+      `/admin/problems?problemType=${preview[0]?.problemType ?? "programming"}`,
+    );
     router.refresh();
   }
 
@@ -201,8 +210,32 @@ export function ImportClient() {
             />
           </label>
         </div>
+        <div className="mt-5 flex flex-wrap gap-2">
+          <button
+            className="btn btn-secondary px-3 py-2 text-sm"
+            onClick={() => {
+              setMarkdown(template);
+              setPreview([]);
+              setParseErrors([]);
+            }}
+            type="button"
+          >
+            使用编程题模板
+          </button>
+          <button
+            className="btn btn-secondary px-3 py-2 text-sm"
+            onClick={() => {
+              setMarkdown(objectiveProblemMarkdownTemplate);
+              setPreview([]);
+              setParseErrors([]);
+            }}
+            type="button"
+          >
+            使用选择判断模板
+          </button>
+        </div>
         <textarea
-          className="field mt-5 min-h-[620px] resize-y font-mono text-sm leading-6"
+          className="field mt-3 min-h-[620px] resize-y font-mono text-sm leading-6"
           onChange={(event) => {
             setMarkdown(event.target.value);
             setPreview([]);
@@ -282,16 +315,37 @@ export function ImportClient() {
                   题目 {problemIndex + 1}：{problem.title}
                 </summary>
                 <div className="mt-4 grid gap-4">
-                  <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="grid gap-3 sm:grid-cols-4">
+                    <PreviewBlock
+                      title="题型"
+                      value={
+                        problem.problemType === "objective"
+                          ? "选择判断题"
+                          : "编程题"
+                      }
+                    />
                     <PreviewBlock title="难度" value={problem.difficulty} />
                     <PreviewBlock title="分类" value={problem.category} />
-                    <PreviewBlock title="样例数量" value={`${problem.samples.length}`} />
+                    <PreviewBlock
+                      title={problem.problemType === "objective" ? "小题数量" : "样例数量"}
+                      value={`${
+                        problem.problemType === "objective"
+                          ? problem.objectiveItems?.length ?? 0
+                          : problem.samples.length
+                      }`}
+                    />
                   </div>
                   <PreviewBlock title="题目描述" value={problem.description} />
-                  <PreviewBlock title="输入格式" value={problem.inputDescription} />
-                  <PreviewBlock title="输出格式" value={problem.outputDescription} />
-                  <PreviewBlock title="数据范围" value={problem.dataRange} />
-                  <SamplePreview samples={problem.samples} />
+                  {problem.problemType === "objective" ? (
+                    <ObjectivePreview items={problem.objectiveItems ?? []} />
+                  ) : (
+                    <>
+                      <PreviewBlock title="输入格式" value={problem.inputDescription} />
+                      <PreviewBlock title="输出格式" value={problem.outputDescription} />
+                      <PreviewBlock title="数据范围" value={problem.dataRange} />
+                      <SamplePreview samples={problem.samples} />
+                    </>
+                  )}
                 </div>
               </details>
             ))}
@@ -334,6 +388,37 @@ function SamplePreview({
               输出样例 {index + 1}
             </h4>
             <pre className="mt-2 overflow-x-auto text-xs">{sample.output}</pre>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ObjectivePreview({ items }: { items: ObjectiveItem[] }) {
+  return (
+    <div>
+      <h3 className="text-sm font-black text-ink-800">小题预览</h3>
+      <div className="mt-2 grid gap-3">
+        {items.map((item, index) => (
+          <div
+            className="border border-ink-950/10 bg-white/70 p-3"
+            key={`${index}-${item.stem}`}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <h4 className="text-sm font-black">第 {index + 1} 题</h4>
+              <span className="text-xs font-black text-clay">
+                答案 {item.answer} · {item.score} 分
+              </span>
+            </div>
+            <p className="mt-2 whitespace-pre-wrap text-sm font-semibold text-ink-800">
+              {item.stem}
+            </p>
+            <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-ink-600">
+              {item.options
+                .map((option) => `${option.label}. ${option.text}`)
+                .join("\n")}
+            </p>
           </div>
         ))}
       </div>

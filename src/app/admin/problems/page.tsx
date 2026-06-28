@@ -4,6 +4,7 @@ import {
   buildPaginationMeta,
   readPaginationFromObject,
 } from "@/lib/pagination";
+import { isProblemType, normalizeProblemType } from "@/lib/objectiveProblem";
 import { prisma } from "@/lib/prisma";
 import { getPracticeSubmissionCountsByProblem } from "@/lib/problemSubmissionCounts";
 import { ProblemManager } from "./problem-manager";
@@ -29,8 +30,17 @@ export default async function AdminProblemsPage({ searchParams }: PageProps) {
     ? query.category[0]
     : query.category;
   const normalizedCategory = selectedCategory?.trim() || "";
+  const selectedProblemType = Array.isArray(query.problemType)
+    ? query.problemType[0]
+    : query.problemType;
+  const problemType = isProblemType(selectedProblemType)
+    ? selectedProblemType
+    : "programming";
   const { page, pageSize, skip } = readPaginationFromObject(query);
-  const where = normalizedCategory ? { category: normalizedCategory } : undefined;
+  const where = {
+    problemType,
+    ...(normalizedCategory ? { category: normalizedCategory } : {}),
+  };
   const [problems, total, allCategories] = await Promise.all([
     prisma.problem.findMany({
       where,
@@ -43,6 +53,7 @@ export default async function AdminProblemsPage({ searchParams }: PageProps) {
     }),
     prisma.problem.count({ where }),
     prisma.problem.findMany({
+      where: { problemType },
       select: { category: true },
       orderBy: { category: "asc" },
     }),
@@ -62,6 +73,8 @@ export default async function AdminProblemsPage({ searchParams }: PageProps) {
     dataRange: problem.dataRange ?? "",
     difficulty: problem.difficulty,
     category: problem.category,
+    problemType: normalizeProblemType(problem.problemType),
+    objectiveItems: problem.objectiveItems,
     testCases: problem.testCases.map((testCase) => ({
       id: testCase.id,
       input: testCase.input,
@@ -85,6 +98,7 @@ export default async function AdminProblemsPage({ searchParams }: PageProps) {
         categories={categories}
         initialCategory={normalizedCategory}
         initialPagination={buildPaginationMeta({ page, pageSize, total })}
+        initialProblemType={problemType}
         initialProblems={initialProblems}
       />
     </AppShell>

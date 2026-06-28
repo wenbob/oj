@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { requirePageUser } from "@/lib/auth";
+import { normalizeProblemType } from "@/lib/objectiveProblem";
 import { prisma } from "@/lib/prisma";
 import { ExamImportClient } from "./exam-import-client";
 
@@ -27,7 +28,7 @@ export default async function AdminExamImportPage({ params }: PageProps) {
 
   const exam = await prisma.exam.findUnique({
     where: { id: examId },
-    select: { id: true, title: true },
+    select: { id: true, title: true, examType: true },
   });
   if (!exam) notFound();
 
@@ -46,7 +47,10 @@ export default async function AdminExamImportPage({ params }: PageProps) {
           返回考试编辑
         </Link>
       </div>
-      <ExamImportClient examId={exam.id} />
+      <ExamImportClient
+        examId={exam.id}
+        examType={normalizeProblemType(exam.examType)}
+      />
     </AppShell>
   );
 }

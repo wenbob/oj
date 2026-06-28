@@ -1,5 +1,10 @@
 import type { Prisma } from "@prisma/client";
-import type { ParsedProblemMarkdown } from "@/lib/markdownParser";
+import type { ParsedProblemMarkdown } from "./markdownParser";
+import {
+  isProblemType,
+  stringifyObjectiveItems,
+  validateObjectiveItems,
+} from "./objectiveProblem";
 
 type ProblemDefaults = {
   defaultCategory?: string;
@@ -43,9 +48,21 @@ export function validateParsedProblems(
     if (!problem.difficulty?.trim()) errors.push(`${prefix}缺少难度`);
     if (!problem.category?.trim()) errors.push(`${prefix}缺少分类`);
     if (!problem.description?.trim()) errors.push(`${prefix}缺少题目描述`);
+    if (!problem.dataRange?.trim()) errors.push(`${prefix}缺少数据范围`);
+    if (!isProblemType(problem.problemType)) {
+      errors.push(`${prefix}题型不合法`);
+      return;
+    }
+
+    if (problem.problemType === "objective") {
+      validateObjectiveItems(problem.objectiveItems ?? []).forEach((error) => {
+        errors.push(`${prefix}${error}`);
+      });
+      return;
+    }
+
     if (!problem.inputDescription?.trim()) errors.push(`${prefix}缺少输入格式`);
     if (!problem.outputDescription?.trim()) errors.push(`${prefix}缺少输出格式`);
-    if (!problem.dataRange?.trim()) errors.push(`${prefix}缺少数据范围`);
 
     if (!Array.isArray(problem.samples) || problem.samples.length === 0) {
       errors.push(`${prefix}缺少样例`);
@@ -84,18 +101,26 @@ export async function createImportedProblems(
         description: problem.description,
         inputDescription: problem.inputDescription,
         outputDescription: problem.outputDescription,
-        sampleInput: firstSample.input,
-        sampleOutput: firstSample.output,
+        sampleInput: firstSample?.input ?? "",
+        sampleOutput: firstSample?.output ?? "",
         dataRange: problem.dataRange,
         difficulty: problem.difficulty,
         category: problem.category,
-        testCases: {
-          create: problem.samples.map((sample) => ({
-            input: sample.input,
-            output: sample.output,
-            isSample: true,
-          })),
-        },
+        problemType: problem.problemType,
+        objectiveItems:
+          problem.problemType === "objective"
+            ? stringifyObjectiveItems(problem.objectiveItems ?? [])
+            : undefined,
+        testCases:
+          problem.problemType === "programming"
+            ? {
+                create: problem.samples.map((sample) => ({
+                  input: sample.input,
+                  output: sample.output,
+                  isSample: true,
+                })),
+              }
+            : undefined,
       },
       select: { id: true },
     });

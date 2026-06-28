@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireApiUser } from "@/lib/auth";
+import { isProblemType } from "@/lib/objectiveProblem";
 import {
   buildPaginationMeta,
   readPaginationFromUrl,
@@ -13,11 +14,18 @@ export async function GET(request: NextRequest) {
   if (auth.response) return auth.response;
 
   const category = request.nextUrl.searchParams.get("category")?.trim();
+  const problemType = request.nextUrl.searchParams.get("problemType")?.trim();
+  if (problemType && !isProblemType(problemType)) {
+    return NextResponse.json({ error: "题型不合法" }, { status: 400 });
+  }
   const { page, pageSize, skip } = readPaginationFromUrl(request.nextUrl.searchParams);
-  const where = category ? { category } : undefined;
+  const where = {
+    ...(category ? { category } : {}),
+    ...(problemType ? { problemType } : {}),
+  };
   const [problems, total] = await Promise.all([
     prisma.problem.findMany({
-      where,
+      where: Object.keys(where).length ? where : undefined,
       include: {
         testCases: { orderBy: { id: "asc" } },
       },
@@ -25,7 +33,7 @@ export async function GET(request: NextRequest) {
       skip,
       take: pageSize,
     }),
-    prisma.problem.count({ where }),
+    prisma.problem.count({ where: Object.keys(where).length ? where : undefined }),
   ]);
   const submissionCounts = await getPracticeSubmissionCountsByProblem({
     problemIds: problems.map((problem) => problem.id),
@@ -59,9 +67,14 @@ export async function POST(request: NextRequest) {
         dataRange: payload.dataRange,
         difficulty: payload.difficulty,
         category: payload.category,
-        testCases: {
-          create: payload.testCases,
-        },
+        problemType: payload.problemType,
+        objectiveItems: payload.objectiveItems ?? null,
+        testCases:
+          payload.problemType === "programming"
+            ? {
+                create: payload.testCases,
+              }
+            : undefined,
       },
       include: { testCases: true },
     });

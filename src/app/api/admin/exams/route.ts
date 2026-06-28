@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireApiUser } from "@/lib/auth";
+import { isProblemType } from "@/lib/objectiveProblem";
 import { prisma } from "@/lib/prisma";
 
 function readExamPayload(body: unknown) {
@@ -15,8 +16,10 @@ function readExamPayload(body: unknown) {
       ? null
       : Number(record.durationMin);
   const status = typeof record.status === "string" ? record.status : "draft";
+  const examType =
+    typeof record.examType === "string" ? record.examType : "programming";
 
-  return { title, description, durationMin, status };
+  return { title, description, durationMin, status, examType };
 }
 
 function validateExamPayload(payload: ReturnType<typeof readExamPayload>) {
@@ -30,6 +33,7 @@ function validateExamPayload(payload: ReturnType<typeof readExamPayload>) {
   if (!["draft", "published", "ended"].includes(payload.status)) {
     return "考试状态不合法";
   }
+  if (!isProblemType(payload.examType)) return "考试类型不合法";
   return null;
 }
 
@@ -67,6 +71,7 @@ export async function POST(request: NextRequest) {
       description: payload.description || null,
       durationMin: payload.durationMin,
       status: payload.status,
+      examType: payload.examType,
     },
   });
 

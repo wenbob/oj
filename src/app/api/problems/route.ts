@@ -4,6 +4,7 @@ import {
   buildPaginationMeta,
   readPaginationFromUrl,
 } from "@/lib/pagination";
+import { isProblemType } from "@/lib/objectiveProblem";
 import { prisma } from "@/lib/prisma";
 import { getPracticeSubmissionCountsByProblem } from "@/lib/problemSubmissionCounts";
 
@@ -12,11 +13,18 @@ export async function GET(request: NextRequest) {
   if (auth.response) return auth.response;
 
   const category = request.nextUrl.searchParams.get("category")?.trim();
+  const problemTypeValue = request.nextUrl.searchParams.get("problemType")?.trim();
+  if (problemTypeValue && !isProblemType(problemTypeValue)) {
+    return NextResponse.json({ error: "题型不合法" }, { status: 400 });
+  }
   const { page, pageSize, skip } = readPaginationFromUrl(request.nextUrl.searchParams);
-  const where = category ? { category } : undefined;
+  const where = {
+    ...(category ? { category } : {}),
+    ...(problemTypeValue ? { problemType: problemTypeValue } : {}),
+  };
   const [problems, total] = await Promise.all([
     prisma.problem.findMany({
-      where,
+      where: Object.keys(where).length ? where : undefined,
       orderBy: { createdAt: "desc" },
       skip,
       take: pageSize,
@@ -25,10 +33,11 @@ export async function GET(request: NextRequest) {
         title: true,
         difficulty: true,
         category: true,
+        problemType: true,
         createdAt: true,
       },
     }),
-    prisma.problem.count({ where }),
+    prisma.problem.count({ where: Object.keys(where).length ? where : undefined }),
   ]);
   const submissionCounts = await getPracticeSubmissionCountsByProblem({
     problemIds: problems.map((problem) => problem.id),

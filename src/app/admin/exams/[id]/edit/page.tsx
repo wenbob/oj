@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { requirePageUser } from "@/lib/auth";
+import { normalizeProblemType } from "@/lib/objectiveProblem";
 import { prisma } from "@/lib/prisma";
 import { ExamEditClient } from "../../exam-edit-client";
 
@@ -25,40 +26,47 @@ export default async function AdminEditExamPage({ params }: PageProps) {
   const examId = Number(id);
   if (!Number.isInteger(examId)) notFound();
 
-  const [exam, categoryRows] = await Promise.all([
-    prisma.exam.findUnique({
-      where: { id: examId },
-      include: {
-        problems: {
-          include: {
-            problem: {
-              select: {
-                id: true,
-                title: true,
-                difficulty: true,
-                category: true,
-              },
+  const exam = await prisma.exam.findUnique({
+    where: { id: examId },
+    include: {
+      problems: {
+        include: {
+          problem: {
+            select: {
+              id: true,
+              title: true,
+              difficulty: true,
+              category: true,
+              problemType: true,
             },
           },
-          orderBy: [{ order: "asc" }, { id: "asc" }],
         },
+        orderBy: [{ order: "asc" }, { id: "asc" }],
       },
-    }),
-    prisma.problem.findMany({
-      distinct: ["category"],
-      orderBy: { category: "asc" },
-      select: { category: true },
-    }),
-  ]);
+    },
+  });
 
   if (!exam) notFound();
+  const categoryRows = await prisma.problem.findMany({
+    where: { problemType: exam.examType },
+    distinct: ["category"],
+    orderBy: { category: "asc" },
+    select: { category: true },
+  });
   const clientExam = {
     id: exam.id,
     title: exam.title,
     description: exam.description,
     durationMin: exam.durationMin,
     status: exam.status,
-    problems: exam.problems,
+    examType: normalizeProblemType(exam.examType),
+    problems: exam.problems.map((item) => ({
+      ...item,
+      problem: {
+        ...item.problem,
+        problemType: normalizeProblemType(item.problem.problemType),
+      },
+    })),
   };
 
   return (

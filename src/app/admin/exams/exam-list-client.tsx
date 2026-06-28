@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { StatusBadge } from "@/components/StatusBadge";
+import { ProblemTypeBadge } from "@/components/ProblemTypeBadge";
 import { formatDate } from "@/lib/format";
 
 type ExamListItem = {
@@ -12,6 +13,7 @@ type ExamListItem = {
   description: string | null;
   durationMin: number | null;
   status: string;
+  examType: string;
   createdAt: Date | string;
   _count: { problems: number };
 };
@@ -50,6 +52,7 @@ export function ExamListClient({ exams }: { exams: ExamListItem[] }) {
             <tr className="border-b border-ink-950/10 bg-white/55 text-left">
               <th className="table-head px-5 py-3">考试名称</th>
               <th className="table-head px-5 py-3">状态</th>
+              <th className="table-head px-5 py-3">类型</th>
               <th className="table-head px-5 py-3">题目数</th>
               <th className="table-head px-5 py-3">时长</th>
               <th className="table-head px-5 py-3">创建时间</th>
@@ -67,6 +70,9 @@ export function ExamListClient({ exams }: { exams: ExamListItem[] }) {
                 </td>
                 <td className="px-5 py-4">
                   <StatusBadge status={exam.status} />
+                </td>
+                <td className="px-5 py-4">
+                  <ProblemTypeBadge type={exam.examType} />
                 </td>
                 <td className="px-5 py-4 text-sm font-semibold text-ink-700">
                   {exam._count.problems}
@@ -151,7 +157,7 @@ export function ExamListClient({ exams }: { exams: ExamListItem[] }) {
               <tr>
                 <td
                   className="px-5 py-12 text-center text-sm font-semibold text-ink-600"
-                  colSpan={6}
+                  colSpan={7}
                 >
                   暂无考试，先新建一个模拟考试。
                 </td>

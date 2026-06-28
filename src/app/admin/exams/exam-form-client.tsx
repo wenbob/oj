@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import type { ProblemType } from "@/lib/objectiveProblem";
 
 type ExamFormValue = {
   id?: number;
@@ -9,6 +10,7 @@ type ExamFormValue = {
   description: string;
   durationMin: string;
   status: string;
+  examType: ProblemType;
 };
 
 export function ExamFormClient({
@@ -17,10 +19,13 @@ export function ExamFormClient({
     description: "",
     durationMin: "90",
     status: "draft",
+    examType: "programming",
   },
+  lockExamType = false,
   mode,
 }: {
   initialValue?: ExamFormValue;
+  lockExamType?: boolean;
   mode: "create" | "edit";
 }) {
   const router = useRouter();
@@ -55,6 +60,7 @@ export function ExamFormClient({
         description: form.description,
         durationMin: form.durationMin,
         status: form.status,
+        examType: form.examType,
       }),
     });
     const data = await response.json().catch(() => ({}));
@@ -94,7 +100,26 @@ export function ExamFormClient({
             value={form.description}
           />
         </label>
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-3">
+          <label className="grid gap-2 text-sm font-bold text-ink-800">
+            考试类型
+            <select
+              className="field"
+              disabled={lockExamType}
+              onChange={(event) =>
+                update("examType", event.target.value as ProblemType)
+              }
+              value={form.examType}
+            >
+              <option value="programming">编程题考试</option>
+              <option value="objective">选择判断考试</option>
+            </select>
+            {lockExamType ? (
+              <span className="text-xs font-semibold text-ink-600">
+                考试已有题目，移除全部题目后才能修改类型。
+              </span>
+            ) : null}
+          </label>
           <label className="grid gap-2 text-sm font-bold text-ink-800">
             考试时长（分钟）
             <input

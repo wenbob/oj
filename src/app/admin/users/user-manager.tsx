@@ -1,7 +1,8 @@
 "use client";
 
 import { Pencil, Plus, Save, Trash2, X } from "lucide-react";
-import { FormEvent, useState } from "react";
+import type { FormEvent } from "react";
+import { useState } from "react";
 import { formatDate } from "@/lib/format";
 
 type UserItem = {

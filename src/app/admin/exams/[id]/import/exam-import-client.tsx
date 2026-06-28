@@ -3,9 +3,15 @@
 import { Check, FileUp, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { ChangeEvent, useState } from "react";
+import type {
+  ObjectiveItem,
+  ProblemType,
+} from "@/lib/objectiveProblem";
+import { objectiveProblemMarkdownTemplate } from "@/lib/markdownTemplates";
 
 type ParsedProblem = {
   title: string;
+  problemType: ProblemType;
   difficulty: string;
   category: string;
   description: string;
@@ -13,6 +19,7 @@ type ParsedProblem = {
   outputDescription: string;
   samples: { input: string; output: string }[];
   dataRange: string;
+  objectiveItems?: ObjectiveItem[];
 };
 
 const template = `# A+B 问题
@@ -68,9 +75,17 @@ const template = `# A+B 问题
 1 <= a, b <= 1000
 `;
 
-export function ExamImportClient({ examId }: { examId: number }) {
+export function ExamImportClient({
+  examId,
+  examType,
+}: {
+  examId: number;
+  examType: ProblemType;
+}) {
   const router = useRouter();
-  const [markdown, setMarkdown] = useState(template);
+  const [markdown, setMarkdown] = useState(
+    examType === "objective" ? objectiveProblemMarkdownTemplate : template,
+  );
   const [defaultDifficulty, setDefaultDifficulty] = useState("入门");
   const [defaultCategory, setDefaultCategory] = useState("基础语法");
   const [preview, setPreview] = useState<ParsedProblem[]>([]);
@@ -140,7 +155,7 @@ export function ExamImportClient({ examId }: { examId: number }) {
           <div>
             <h1 className="text-2xl font-black">Markdown 导入题目到考试</h1>
             <p className="mt-1 text-sm font-semibold text-ink-600">
-              导入后会进入日常题库，并自动加入当前考试。Markdown 中的难度和分类优先于默认值。
+              当前是{examType === "objective" ? "选择判断" : "编程"}考试，只能导入同类型题目。导入后题目也会进入日常题库。
             </p>
           </div>
           <label className="btn btn-secondary cursor-pointer">
@@ -240,16 +255,37 @@ export function ExamImportClient({ examId }: { examId: number }) {
                   题目 {problemIndex + 1}：{problem.title}
                 </summary>
                 <div className="mt-4 grid gap-4">
-                  <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="grid gap-3 sm:grid-cols-4">
+                    <PreviewBlock
+                      title="题型"
+                      value={
+                        problem.problemType === "objective"
+                          ? "选择判断题"
+                          : "编程题"
+                      }
+                    />
                     <PreviewBlock title="难度" value={problem.difficulty} />
                     <PreviewBlock title="分类" value={problem.category} />
-                    <PreviewBlock title="样例数量" value={`${problem.samples.length}`} />
+                    <PreviewBlock
+                      title={problem.problemType === "objective" ? "小题数量" : "样例数量"}
+                      value={`${
+                        problem.problemType === "objective"
+                          ? problem.objectiveItems?.length ?? 0
+                          : problem.samples.length
+                      }`}
+                    />
                   </div>
                   <PreviewBlock title="题目描述" value={problem.description} />
-                  <PreviewBlock title="输入格式" value={problem.inputDescription} />
-                  <PreviewBlock title="输出格式" value={problem.outputDescription} />
-                  <PreviewBlock title="数据范围" value={problem.dataRange} />
-                  <SamplePreview samples={problem.samples} />
+                  {problem.problemType === "objective" ? (
+                    <ObjectivePreview items={problem.objectiveItems ?? []} />
+                  ) : (
+                    <>
+                      <PreviewBlock title="输入格式" value={problem.inputDescription} />
+                      <PreviewBlock title="输出格式" value={problem.outputDescription} />
+                      <PreviewBlock title="数据范围" value={problem.dataRange} />
+                      <SamplePreview samples={problem.samples} />
+                    </>
+                  )}
                 </div>
               </details>
             ))}
@@ -292,6 +328,32 @@ function SamplePreview({
               输出样例 {index + 1}
             </h4>
             <pre className="mt-2 overflow-x-auto text-xs">{sample.output}</pre>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ObjectivePreview({ items }: { items: ObjectiveItem[] }) {
+  return (
+    <div>
+      <h3 className="text-sm font-black text-ink-800">小题预览</h3>
+      <div className="mt-2 grid gap-3">
+        {items.map((item, index) => (
+          <div
+            className="border border-ink-950/10 bg-white/70 p-3"
+            key={`${index}-${item.stem}`}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <h4 className="text-sm font-black">第 {index + 1} 题</h4>
+              <span className="text-xs font-black text-clay">
+                答案 {item.answer} · {item.score} 分
+              </span>
+            </div>
+            <p className="mt-2 whitespace-pre-wrap text-sm font-semibold text-ink-800">
+              {item.stem}
+            </p>
           </div>
         ))}
       </div>

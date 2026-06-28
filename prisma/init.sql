@@ -31,9 +31,13 @@ CREATE TABLE "Problem" (
   "dataRange" TEXT,
   "difficulty" TEXT NOT NULL,
   "category" TEXT NOT NULL,
+  "problemType" TEXT NOT NULL DEFAULT 'programming',
+  "objectiveItems" TEXT,
   "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE INDEX "Problem_problemType_category_idx" ON "Problem"("problemType", "category");
 
 CREATE TABLE "Exam" (
   "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
@@ -41,9 +45,12 @@ CREATE TABLE "Exam" (
   "description" TEXT,
   "durationMin" INTEGER,
   "status" TEXT NOT NULL DEFAULT 'draft',
+  "examType" TEXT NOT NULL DEFAULT 'programming',
   "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE INDEX "Exam_examType_status_idx" ON "Exam"("examType", "status");
 
 CREATE TABLE "TestCase" (
   "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,

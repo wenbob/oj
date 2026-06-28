@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
+import { ProblemTypeBadge } from "@/components/ProblemTypeBadge";
+import type { ProblemType } from "@/lib/objectiveProblem";
 import { ExamFormClient } from "./exam-form-client";
 
 type ExamProblemItem = {
@@ -16,6 +18,7 @@ type ExamProblemItem = {
     title: string;
     difficulty: string;
     category: string;
+    problemType: ProblemType;
   };
 };
 
@@ -25,6 +28,7 @@ type ExamValue = {
   description: string | null;
   durationMin: number | null;
   status: string;
+  examType: ProblemType;
   problems: ExamProblemItem[];
 };
 
@@ -33,6 +37,7 @@ type SearchProblem = {
   title: string;
   difficulty: string;
   category: string;
+  problemType: ProblemType;
 };
 
 export function ExamEditClient({
@@ -76,6 +81,7 @@ export function ExamEditClient({
     const query = new URLSearchParams();
     if (nextKeyword.trim()) query.set("keyword", nextKeyword.trim());
     if (nextCategory) query.set("category", nextCategory);
+    query.set("problemType", exam.examType);
     const response = await fetch(
       `/api/admin/problems/search?${query.toString()}`,
     );
@@ -93,7 +99,7 @@ export function ExamEditClient({
   }
 
   function readAddValues() {
-    const score = Number(scoreValue);
+    const score = exam.examType === "objective" ? 1 : Number(scoreValue);
     const order =
       orderValue.trim() === ""
         ? (problems.at(-1)?.order ?? 0) + 1
@@ -286,7 +292,9 @@ export function ExamEditClient({
           description: exam.description ?? "",
           durationMin: exam.durationMin?.toString() ?? "",
           status: exam.status,
+          examType: exam.examType,
         }}
+        lockExamType={problems.length > 0}
         mode="edit"
       />
 
@@ -294,9 +302,12 @@ export function ExamEditClient({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-xl font-black">考试题目</h2>
-            <p className="mt-1 text-sm font-semibold text-ink-600">
-              可以从日常题库添加题目，也可以通过 Markdown 导入新题并加入考试。
-            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-3">
+              <ProblemTypeBadge type={exam.examType} />
+              <p className="text-sm font-semibold text-ink-600">
+                只能添加与当前考试相同类型的题目。
+              </p>
+            </div>
           </div>
           <Link
             className="btn btn-primary"
@@ -330,7 +341,13 @@ export function ExamEditClient({
           ))}
         </div>
 
-        <div className="mt-5 grid gap-3 md:grid-cols-[minmax(0,1fr)_120px_120px_110px]">
+        <div
+          className={`mt-5 grid gap-3 ${
+            exam.examType === "objective"
+              ? "md:grid-cols-[minmax(0,1fr)_120px_110px]"
+              : "md:grid-cols-[minmax(0,1fr)_120px_120px_110px]"
+          }`}
+        >
           <label className="grid gap-2 text-sm font-bold text-ink-800">
             搜索题目名称
             <input
@@ -349,15 +366,17 @@ export function ExamEditClient({
               value={orderValue}
             />
           </label>
-          <label className="grid gap-2 text-sm font-bold text-ink-800">
-            分值
-            <input
-              className="field"
-              onChange={(event) => setScoreValue(event.target.value)}
-              type="number"
-              value={scoreValue}
-            />
-          </label>
+          {exam.examType === "programming" ? (
+            <label className="grid gap-2 text-sm font-bold text-ink-800">
+              分值
+              <input
+                className="field"
+                onChange={(event) => setScoreValue(event.target.value)}
+                type="number"
+                value={scoreValue}
+              />
+            </label>
+          ) : null}
           <button
             className="btn btn-secondary self-end justify-center"
             disabled={pending}
@@ -412,6 +431,9 @@ export function ExamEditClient({
                       {problem.category || "未分类"} / {problem.difficulty}
                       {existingProblemIds.has(problem.id) ? " / 已在考试中" : ""}
                     </span>
+                    <span className="mt-2 block">
+                      <ProblemTypeBadge type={problem.problemType} />
+                    </span>
                   </span>
                 </label>
                 <button
@@ -464,6 +486,7 @@ export function ExamEditClient({
                   <td className="px-4 py-3">
                     <input
                       className="field w-24"
+                      disabled={exam.examType === "objective"}
                       onChange={(event) =>
                         setProblems((current) =>
                           current.map((problem) =>
@@ -476,6 +499,11 @@ export function ExamEditClient({
                       type="number"
                       value={item.score}
                     />
+                    {exam.examType === "objective" ? (
+                      <p className="mt-1 text-xs font-semibold text-ink-600">
+                        小题分值合计
+                      </p>
+                    ) : null}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex justify-end gap-2">

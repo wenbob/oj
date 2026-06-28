@@ -1,14 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireApiUser } from "@/lib/auth";
 import { finishExamRecord, isExamExpired } from "@/lib/examScoring";
+import type { JudgeResult } from "@/lib/judge";
 import { judgeCppCode } from "@/lib/judge";
 import { enqueueJudgeTask } from "@/lib/judgeQueue";
+import {
+  judgeObjectiveSubmission,
+  parseObjectiveItems,
+  validateObjectiveItems,
+} from "@/lib/objectiveProblem";
 import { prisma } from "@/lib/prisma";
 import { getJudgeDefaultSettings } from "@/lib/settings";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
 };
+
+const objectiveSubmissionCooldownMs = 30_000;
 
 export async function POST(request: NextRequest, context: RouteContext) {
   const auth = await requireApiUser(request);
@@ -26,9 +34,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
   if (!Number.isInteger(problemId)) {
     return NextResponse.json({ error: "题目 ID 不合法" }, { status: 400 });
   }
-  if (!code.trim()) {
-    return NextResponse.json({ error: "代码不能为空" }, { status: 400 });
-  }
   if (examId !== null && !Number.isInteger(examId)) {
     return NextResponse.json({ error: "考试 ID 不合法" }, { status: 400 });
   }
@@ -41,8 +46,30 @@ export async function POST(request: NextRequest, context: RouteContext) {
   if (!problem) {
     return NextResponse.json({ error: "题目不存在" }, { status: 404 });
   }
-  if (problem.testCases.length === 0) {
+  if (!code.trim()) {
+    return NextResponse.json(
+      {
+        error:
+          problem.problemType === "objective" ? "答案不能为空" : "代码不能为空",
+      },
+      { status: 400 },
+    );
+  }
+  if (problem.problemType === "programming" && problem.testCases.length === 0) {
     return NextResponse.json({ error: "该题还没有测试点" }, { status: 400 });
+  }
+  const objectiveItems =
+    problem.problemType === "objective"
+      ? parseObjectiveItems(problem.objectiveItems)
+      : [];
+  if (problem.problemType === "objective") {
+    const objectiveErrors = validateObjectiveItems(objectiveItems);
+    if (objectiveErrors.length > 0) {
+      return NextResponse.json(
+        { error: `该客观题配置无效：${objectiveErrors[0]}` },
+        { status: 400 },
+      );
+    }
   }
 
   const submissionType = examId === null ? "practice" : "exam";
@@ -63,6 +90,12 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return NextResponse.json(
         { error: "考试不存在，或当前题目不属于该考试" },
         { status: 404 },
+      );
+    }
+    if (exam.examType !== problem.problemType) {
+      return NextResponse.json(
+        { error: "考试类型与题目类型不一致" },
+        { status: 400 },
       );
     }
     const examRecord = await prisma.examRecord.findUnique({
@@ -112,20 +145,55 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
   }
 
-  let result;
+  if (problem.problemType === "objective") {
+    const latestSubmission = await prisma.submission.findFirst({
+      where: {
+        examId,
+        problemId,
+        submissionType,
+        userId: auth.user.id,
+      },
+      orderBy: { createdAt: "desc" },
+      select: { createdAt: true },
+    });
+    const remainingMs = latestSubmission
+      ? objectiveSubmissionCooldownMs -
+        (Date.now() - latestSubmission.createdAt.getTime())
+      : 0;
+
+    if (remainingMs > 0) {
+      const retryAfterSeconds = Math.ceil(remainingMs / 1000);
+      return NextResponse.json(
+        {
+          error: `选择判断题 30 秒内只能提交一次，请 ${retryAfterSeconds} 秒后再提交`,
+          retryAfterSeconds,
+        },
+        { status: 429 },
+      );
+    }
+  }
+
+  let result: JudgeResult;
   try {
-    const judgeDefaults = await getJudgeDefaultSettings();
-    result = await enqueueJudgeTask(() =>
-      judgeCppCode({
-        code,
-        testCases: problem.testCases.map((item) => ({
-          input: item.input,
-          output: item.output,
-        })),
-        timeLimitMs: judgeDefaults.timeLimitMs,
-        memoryLimitMb: judgeDefaults.memoryLimitMb,
-      }),
-    );
+    if (problem.problemType === "objective") {
+      result = judgeObjectiveSubmission({
+        answerText: code,
+        items: objectiveItems,
+      });
+    } else {
+      const judgeDefaults = await getJudgeDefaultSettings();
+      result = await enqueueJudgeTask(() =>
+        judgeCppCode({
+          code,
+          testCases: problem.testCases.map((item) => ({
+            input: item.input,
+            output: item.output,
+          })),
+          timeLimitMs: judgeDefaults.timeLimitMs,
+          memoryLimitMb: judgeDefaults.memoryLimitMb,
+        }),
+      );
+    }
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "评测任务执行失败" },
@@ -140,7 +208,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       examId,
       submissionType,
       code,
-      language: "C++17",
+      language: problem.problemType === "objective" ? "Objective" : "C++17",
       status: result.status,
       passedCount: result.passedCount,
       totalCount: result.totalCount,

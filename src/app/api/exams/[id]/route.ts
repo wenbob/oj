@@ -27,6 +27,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
               title: true,
               difficulty: true,
               category: true,
+              problemType: true,
             },
           },
         },

@@ -2,7 +2,9 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Pagination } from "@/components/Pagination";
+import { ProblemTypeBadge } from "@/components/ProblemTypeBadge";
 import { requirePageUser } from "@/lib/auth";
+import { isProblemType } from "@/lib/objectiveProblem";
 import {
   buildPaginationMeta,
   readPaginationFromObject,
@@ -29,8 +31,17 @@ export default async function StudentProblemsPage({ searchParams }: PageProps) {
     ? query.category[0]
     : query.category;
   const normalizedCategory = selectedCategory?.trim() || "";
+  const selectedProblemType = Array.isArray(query.problemType)
+    ? query.problemType[0]
+    : query.problemType;
+  const problemType = isProblemType(selectedProblemType)
+    ? selectedProblemType
+    : "programming";
   const { page, pageSize, skip } = readPaginationFromObject(query);
-  const where = normalizedCategory ? { category: normalizedCategory } : undefined;
+  const where = {
+    problemType,
+    ...(normalizedCategory ? { category: normalizedCategory } : {}),
+  };
 
   const [problems, total, allCategories] = await Promise.all([
     prisma.problem.findMany({
@@ -40,6 +51,7 @@ export default async function StudentProblemsPage({ searchParams }: PageProps) {
         title: true,
         difficulty: true,
         category: true,
+        problemType: true,
       },
       orderBy: { createdAt: "desc" },
       skip,
@@ -47,6 +59,7 @@ export default async function StudentProblemsPage({ searchParams }: PageProps) {
     }),
     prisma.problem.count({ where }),
     prisma.problem.findMany({
+      where: { problemType },
       select: { category: true },
       orderBy: { category: "asc" },
     }),
@@ -81,13 +94,30 @@ export default async function StudentProblemsPage({ searchParams }: PageProps) {
             </p>
           </div>
           <div className="mt-5 flex flex-wrap gap-2">
-            <CategoryLink active={!normalizedCategory} href="/student/problems">
+            <CategoryLink
+              active={problemType === "programming"}
+              href="/student/problems?problemType=programming"
+            >
+              编程题
+            </CategoryLink>
+            <CategoryLink
+              active={problemType === "objective"}
+              href="/student/problems?problemType=objective"
+            >
+              选择判断题
+            </CategoryLink>
+          </div>
+          <div className="mt-5 flex flex-wrap gap-2">
+            <CategoryLink
+              active={!normalizedCategory}
+              href={`/student/problems?problemType=${problemType}`}
+            >
               全部
             </CategoryLink>
             {categories.map((category) => (
               <CategoryLink
                 active={normalizedCategory === category}
-                href={`/student/problems?category=${encodeURIComponent(category)}`}
+                href={`/student/problems?problemType=${problemType}&category=${encodeURIComponent(category)}`}
                 key={category}
               >
                 {category}
@@ -102,6 +132,7 @@ export default async function StudentProblemsPage({ searchParams }: PageProps) {
                 <th className="table-head px-5 py-3">标题</th>
                 <th className="table-head px-5 py-3">难度</th>
                 <th className="table-head px-5 py-3">分类</th>
+                <th className="table-head px-5 py-3">题型</th>
                 <th className="table-head px-5 py-3">我的提交</th>
                 <th className="table-head px-5 py-3 text-right">操作</th>
               </tr>
@@ -115,6 +146,9 @@ export default async function StudentProblemsPage({ searchParams }: PageProps) {
                   </td>
                   <td className="px-5 py-4 text-sm font-semibold text-ink-700">
                     {problem.category || "未分类"}
+                  </td>
+                  <td className="px-5 py-4">
+                    <ProblemTypeBadge type={problem.problemType} />
                   </td>
                   <td className="px-5 py-4 text-sm font-semibold text-ink-700">
                     {submissionCounts.get(problem.id) ?? 0}
@@ -134,7 +168,7 @@ export default async function StudentProblemsPage({ searchParams }: PageProps) {
                 <tr>
                   <td
                     className="px-5 py-12 text-center text-sm font-semibold text-ink-600"
-                    colSpan={5}
+                    colSpan={6}
                   >
                     当前分类下还没有题目。
                   </td>

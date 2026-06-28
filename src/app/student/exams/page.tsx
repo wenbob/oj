@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ChevronRight, Timer } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
+import { ProblemTypeBadge } from "@/components/ProblemTypeBadge";
 import { StartExamButton } from "@/components/StartExamButton";
 import { requirePageUser } from "@/lib/auth";
 import { formatDate } from "@/lib/format";
@@ -51,6 +52,7 @@ export default async function StudentExamsPage() {
                   <span className="border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-700">
                     可参加
                   </span>
+                  <ProblemTypeBadge type={exam.examType} />
                 </div>
                 <p className="mt-2 whitespace-pre-wrap text-sm font-semibold leading-6 text-ink-600">
                   {exam.description || "暂无考试说明"}

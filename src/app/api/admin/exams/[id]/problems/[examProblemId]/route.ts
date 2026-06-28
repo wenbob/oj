@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireApiUser } from "@/lib/auth";
+import {
+  getObjectiveTotalScore,
+  parseObjectiveItems,
+} from "@/lib/objectiveProblem";
 import { prisma } from "@/lib/prisma";
 
 type RouteContext = {
@@ -33,11 +37,36 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "分值必须是正整数" }, { status: 400 });
   }
 
+  const existing = await prisma.examProblem.findFirst({
+    where: { id: examProblemId, examId },
+    include: {
+      problem: {
+        select: {
+          problemType: true,
+          objectiveItems: true,
+        },
+      },
+    },
+  });
+  if (!existing) {
+    return NextResponse.json({ error: "考试题目不存在" }, { status: 404 });
+  }
+  const objectiveScore =
+    existing.problem.problemType === "objective"
+      ? getObjectiveTotalScore(
+          parseObjectiveItems(existing.problem.objectiveItems),
+        )
+      : null;
+
   const updated = await prisma.examProblem.updateMany({
     where: { id: examProblemId, examId },
     data: {
       ...(payload.order !== null ? { order: payload.order } : {}),
-      ...(payload.score !== null ? { score: payload.score } : {}),
+      ...(objectiveScore !== null
+        ? { score: objectiveScore }
+        : payload.score !== null
+          ? { score: payload.score }
+          : {}),
     },
   });
 
@@ -49,7 +78,13 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     where: { id: examProblemId, examId },
     include: {
       problem: {
-        select: { id: true, title: true, difficulty: true, category: true },
+        select: {
+          id: true,
+          title: true,
+          difficulty: true,
+          category: true,
+          problemType: true,
+        },
       },
     },
   });
