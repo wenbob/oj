@@ -35,6 +35,7 @@
 - [2026-05-31 学生复制题面与管理员考试练习模式上线记录](docs/ops-review-2026-05-31.md)
 - [2026-06-07 Monaco 代码提示关闭上线记录](docs/ops-review-2026-06-07.md)
 - [2026-06-13 编辑器字号与 AC 弹窗上线记录](docs/ops-review-2026-06-13.md)
+- [2026-06-28 选择判断题型与 standalone 发布记录](docs/ops-review-2026-06-28.md)
 
 ## 技术栈
 
@@ -1262,7 +1263,9 @@ npm ci --registry=https://registry.npmmirror.com --no-audit --no-fund
 npm run build
 ```
 
-线上 2 核 2GB 服务器资源有限，在 `/www/oj` 当前线上目录构建时应先停止 PM2，并使用低内存构建命令：
+线上 2 核 2GB 服务器资源有限，后续常规发布优先在本地 Linux/Docker 环境生成 Next.js standalone 产物，再上传服务器切换目录。不要直接上传 Windows 本机生成的 `.next/standalone`，其中的原生依赖可能不能在 Ubuntu 服务器运行。
+
+如果必须在 `/www/oj` 当前线上目录构建，应先停止 PM2，并使用低内存构建命令：
 
 ```bash
 pm2 stop oj

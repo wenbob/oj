@@ -107,7 +107,7 @@ pm2 start npm --name oj -- run start
 pm2 save
 ```
 
-`npm run start` 会先执行生产环境变量检查，然后使用 Next.js standalone 服务启动。
+`npm run start` 会先执行生产环境变量检查，再通过 `scripts/load-env.mjs` 预加载 `.env`，最后使用 Next.js standalone 服务启动。
 
 如果需要配置 PM2 开机自启：
 
@@ -303,7 +303,7 @@ docker ps -a
 npm run db:status
 ```
 
-部署新版本后执行：
+部署新版本优先使用“本地 Linux/Docker 构建 standalone 产物后上传”的流程，见“后续更新流程”。如果必须在服务器当前目录构建，才执行下面的低内存流程：
 
 ```bash
 npm ci --registry=https://registry.npmmirror.com --no-audit --no-fund
@@ -321,7 +321,7 @@ pm2 restart oj --update-env
 NEXT_TELEMETRY_DISABLED=1 NEXT_PRIVATE_BUILD_WORKER_COUNT=1 NODE_OPTIONS='--max-old-space-size=768' npm run build
 ```
 
-使用 `/www/oj-new` 新目录构建时，也建议使用同样的低内存构建命令。确认构建成功后再切换目录并重启 PM2。
+使用 `/www/oj-new` 新目录构建时，也建议使用同样的低内存构建命令。确认构建成功后再切换目录并重启 PM2。常规发布不要在服务器构建，优先上传本地 Linux standalone 产物。
 
 ## 8. 安全收尾清单
 
@@ -391,32 +391,31 @@ curl http://127.0.0.1:3000
 
 ## 11. 后续更新流程
 
-### 方案 A：继续使用压缩包上传
+### 方案 A：本地 Linux standalone 包上传
 
-本地确认代码已提交后：
+本地确认代码已提交并通过检查后，在 Linux/Docker 环境构建生产产物，再打包上传。不要用 Windows 本机生成的 `.next/standalone` 作为 Ubuntu 服务器产物。
 
-```bash
-git archive -o oj.zip HEAD
-```
+发布包应包含源码、`public`、`prisma`、`scripts`、package 文件、`.next/standalone` 和 `.next/static`；必须排除 `.env`、`*.db`、SQLite 派生文件、`.next/cache`、仓库压缩包和本地 `node_modules` 根目录。standalone 目录内的最小运行依赖是 Next.js 产物的一部分，可以保留。
 
-上传到服务器 `/www` 后：
+上传到服务器 `/www` 后，只在服务器执行解包、环境复制、数据库迁移、预检和切换：
 
 ```bash
 cd /www
 rm -rf /www/oj-new
 mkdir -p /www/oj-new
-unzip -o /www/oj.zip -d /www/oj-new
+tar -xzf /www/oj-release.tgz -C /www/oj-new
 cp /www/oj/.env /www/oj-new/.env
 cp /www/oj/prisma/prod.db /www/oj-new/prisma/prod.db
+cp -a /www/oj/node_modules /www/oj-new/node_modules
 cd /www/oj-new
-npm ci --registry=https://registry.npmmirror.com --no-audit --no-fund
 npm run check:env
 npm run db:deploy
 docker build -t oj-cpp-judge ./docker/judge-cpp
-NEXT_TELEMETRY_DISABLED=1 NEXT_PRIVATE_BUILD_WORKER_COUNT=1 NODE_OPTIONS='--max-old-space-size=768' npm run build
 ```
 
-确认无误后再切换目录。切换前必须备份数据库，并确认新目录存在 `.next`、`.env` 和 `prisma/prod.db`：
+如果 `package-lock.json` 发生依赖变化，不要复用旧 `node_modules`，应在 `/www/oj-new` 执行一次 `npm ci --registry=https://registry.npmmirror.com --no-audit --no-fund` 后再检查环境和迁移数据库。
+
+确认无误后再切换目录。切换前必须备份数据库，并确认新目录存在 `.next`、`.env`、`node_modules` 和 `prisma/prod.db`：
 
 ```bash
 mkdir -p /www/backups
@@ -424,6 +423,7 @@ cp /www/oj/prisma/prod.db /www/backups/prod-$(date +%Y%m%d-%H%M%S).db
 
 test -d /www/oj-new/.next
 test -f /www/oj-new/.env
+test -d /www/oj-new/node_modules
 test -f /www/oj-new/prisma/prod.db
 
 mv /www/oj /www/oj-old-$(date +%Y%m%d-%H%M%S)
@@ -433,11 +433,13 @@ pm2 restart oj --update-env
 curl http://127.0.0.1:3000/api/health
 ```
 
-如果健康检查失败，立即把最新 `/www/oj-old-*` 恢复为 `/www/oj`。
+`npm run start` 会通过 `scripts/load-env.mjs` 预加载 `.env` 后启动 `.next/standalone/server.js`。不要绕过 `npm run start` 直接裸跑 standalone server，否则生产环境变量可能不会加载。
+
+如果健康检查失败，立即把最新 `/www/oj-old-*` 恢复为 `/www/oj`。健康检查应保留足够重试窗口，避免服务尚未完全启动时误判失败。
 
 ### 方案 B：同步到 Gitee
 
-如果服务器访问 GitHub 不稳定，可以后续把 GitHub 仓库同步到 Gitee。服务器从 Gitee 拉取：
+如果服务器访问 GitHub 不稳定，可以后续把 GitHub 仓库同步到 Gitee。这个方案仍会在服务器构建，只作为无法上传本地 Linux standalone 产物时的备用流程。服务器从 Gitee 拉取：
 
 ```bash
 cd /www
