@@ -655,7 +655,7 @@ npm install
 npm run build
 ```
 
-线上 2 核 2GB 服务器构建：
+常规发布优先参考 `docs/deploy.md`，在本地 Linux/Docker 环境生成 standalone 包后上传。只有必须在 2 核 2GB 服务器上构建时，才使用下面的低内存兜底命令：
 
 ```bash
 pm2 stop oj
@@ -664,7 +664,7 @@ pm2 restart oj --update-env
 curl http://127.0.0.1:3000/api/health
 ```
 
-启动生产服务：
+启动生产服务。`npm run start` 会先检查生产环境变量、预加载 `.env`，再启动 standalone 服务；不要绕过它直接裸跑 standalone server。
 
 ```bash
 npm run start

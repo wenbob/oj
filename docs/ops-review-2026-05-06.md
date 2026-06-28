@@ -325,7 +325,7 @@ ss -lntp | grep ':3000'
 短期：
 
 - 给线上部署写一键更新脚本，减少手动复制命令出错。
-- 将 PM2 启动方式调整为更适合 standalone 的 `node .next/standalone/server.js`。
+- PM2 启动方式已统一走 `npm run start`，由脚本先检查环境、预加载 `.env`，再启动 standalone；不要裸跑 `node .next/standalone/server.js`。
 - 将编译内存和运行内存拆分配置。
 
 中期：
